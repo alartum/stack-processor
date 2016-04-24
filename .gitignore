@@ -1,10 +1,10 @@
-# Object files
+# Objectfiles
 *.o
 *.ko
 *.obj
 *.elf
 
-# Precompiled Headers
+# PrecompiledHeaders
 *.gch
 *.pch
 
@@ -14,7 +14,7 @@
 *.la
 *.lo
 
-# Shared objects (inc. Windows DLLs)
+# Sharedobjects(inc.WindowsDLLs)
 *.dll
 *.so
 *.so.*
@@ -28,32 +28,30 @@
 *.x86_64
 *.hex
 
-# Debug files
+# Debugfiles
 *.dSYM/
 
-# Open Frameworks  
+# OpenFrameworks
 
-[Bb]in/*  
+[Bb]in/*
 ![Bb]in/data/
 [Bb]uild/
 [Oo]bj/
-*.o  
-[Dd]ebug*/  
-[Rr]elease*/  
-*.mode*  
-*.app/  
-*.pyc  
-*.log  
- 
-# Code::Blocks  
+*.o
+[Dd]ebug*/
+[Rr]elease*/
+*.mode*
+*.app/
+*.pyc
+*.log
 
-*.depend  
-*.layout  
- 
-# Windows  
+# Code::Blocks
 
-# Windows image file caches  
-Thumbs.db  
+*.depend
+*.layout
 
-# Folder config file  
+# Windowsimagefilecaches
+Thumbs.db
+
+# Folderconfigfile
 Desktop.ini
