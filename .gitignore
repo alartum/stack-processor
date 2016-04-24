@@ -49,6 +49,7 @@
 
 *.depend
 *.layout
+*.cbp
 
 # Windowsimagefilecaches
 Thumbs.db
