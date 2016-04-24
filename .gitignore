@@ -56,3 +56,8 @@ Thumbs.db
 
 # Folderconfigfile
 Desktop.ini
+
+# Doxygen
+html/
+latex/
+Doxyfile*
