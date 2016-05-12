@@ -4,13 +4,14 @@
 #include <string.h>
 #include <stdbool.h>
 
-typedef struct
+typedef struct Buffer Buffer;
+struct Buffer
 {
     // Array of symbols
     char* chars;
     // Length of the array (amount of symbols)
     size_t length;
-} Buffer;
+};
 
 void buffer_destruct (Buffer* This);
 int buffer_construct (Buffer* This, const char filename[]);
@@ -21,8 +22,6 @@ void buffer_dump (const Buffer* This);
 void buffer_destruct (Buffer* This)
 {
     assert (This);
-    if (!This)
-        return;
     if (This->chars)
         free (This->chars);
     // Just to be sure

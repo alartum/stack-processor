@@ -12,7 +12,9 @@
 #include "reg_address.h"
 #undef DEFINES_ONLY
 
-/// Memory size
+/// Memory available for stack
+#define STACK_SIZE 128
+/// Memory size. As the stack is placed in the beginning, be sure to allocate enough space
 #define MEM_SIZE 1024
 /// More comfortable dump
 #define cpu_t_dump(This) cpu_t_dump_(This, #This)
@@ -50,11 +52,15 @@ struct memory_t
     char* storage;
     size_t max_size;
     size_t size;
-    char* free;
+    char* base;
 
     bool is_valid;
 };
 
+void memory_t_erase (memory_t* this)
+{
+    memset(this->base, 0, this->max_size - this->size);
+}
 void memory_t_destruct (memory_t* this)
 {
     if (this->storage)
@@ -62,7 +68,7 @@ void memory_t_destruct (memory_t* this)
     this->storage = NULL;
     this->size = SIZE_MAX; // Poison
     this->max_size = SIZE_MAX; // Poison
-    this->free = NULL; // Posion
+    this->base = NULL; // Posion
     this->is_valid = false;
 }
 
@@ -77,7 +83,7 @@ bool memory_t_construct (memory_t* this, size_t memory_size)
     }
     this->max_size = MEM_SIZE;
     this->size = 0;
-    this->free = this->storage; // The first free byte
+    this->base = this->storage; // The first free byte
     this->is_valid = true;
 
     return true;
@@ -85,7 +91,7 @@ bool memory_t_construct (memory_t* this, size_t memory_size)
 
 bool memory_t_OK (const memory_t* this)
 {
-    return (this->size <= this->max_size && this->free && this->storage && this->is_valid);
+    return (this->size <= this->max_size && this->base && this->storage && this->is_valid);
 }
 
 void memory_t_dump_(const memory_t* this, const char name[])
@@ -103,8 +109,8 @@ void memory_t_dump_(const memory_t* this, const char name[])
         printf("\t%-10s %lu\n", "max_size", this->max_size);
     else
         printf("\t%-10s (" ANSI_COLOR_RED "NONE" ANSI_COLOR_RESET ")\n", "max_size");
-    if (this->free)
-        printf("\t%-10s %p\n", "free", this->free);
+    if (this->base)
+        printf("\t%-10s %p\n", "base", this->base);
     else
         printf("\t%-10s (" ANSI_COLOR_RED "NONE" ANSI_COLOR_RESET ")\n", "free");
     if (this->storage)
@@ -129,7 +135,7 @@ size_t memory_t_reserve (memory_t* this, size_t nbytes)
 
         return (SIZE_MAX);
     }
-    this->free += nbytes;
+    this->base += nbytes;
 
     return (address);
 }
@@ -185,8 +191,6 @@ Processor is a structure that containes a stack and a register to operate with.
 struct cpu_t
 {
     stack_t stack;/**< Operating stack. */
-    stack_t fu_stack; /**< Stack that contains functions return positions */
-    Buffer program;
     char registers[REG_SIZE * REG_NUMBER];/**< Registers of the processor*/
     size_t position; /** The position of code piece beeing currently executed */
     memory_t memory; /** The memory controller interface emulation */
@@ -357,7 +361,7 @@ bool cpu_t_jmp (cpu_t* This)
 {
     ASSERT_OK(cpu_t, This);
     This->position++;
-    size_t new_position = *(size_t*)(This->program.chars + This->position);
+    size_t new_position = *(size_t*)(This->memory.storage + This->position);
     This->position = new_position;
     //printf ("jmp %d\n", new_position);
 
@@ -393,8 +397,8 @@ bool cpu_t_ ## _name (cpu_t* This)\
 {\
     ASSERT_OK(cpu_t, This);\
     This->position++;\
-    size_t new_position = *(size_t*)(This->program.chars + This->position);\
-    assert (new_position < This->program.length); \
+    size_t new_position = *(size_t*)(This->memory.storage + This->position);\
+    assert (new_position < This->memory.size); \
     \
     /*printf ("CHECK: %f " #operation " %f =>", top, next);*/\
     if (_zro_op(This->flags & ZRO_FLAG) _link_op _neg_op(This->flags & NEG_FLAG)){\
@@ -422,13 +426,13 @@ bool cpu_t_ ## _name (cpu_t* This)\
 {\
     ASSERT_OK(cpu_t, This);\
     This->position++;\
-    size_t new_position = *(size_t*)(This->program.chars + This->position);\
-    assert (new_position < This->program.length); \
+    size_t new_position = *(size_t*)(This->memory.storage+ This->position);\
+    assert (new_position < This->memory.size); \
     \
     /*printf ("CHECK: %f " #operation " %f =>", top, next);*/\
     This->position += sizeof (int);\
     if (_zro_op(This->flags & ZRO_FLAG) _link_op _neg_op(This->flags & NEG_FLAG)){\
-        if (!stack_t_push (&This->fu_stack, &This->position, sizeof(size_t)))\
+        if (!stack_t_push (&This->stack, &This->position, sizeof(size_t)))\
             return false;\
         This->position = new_position;\
         /*printf ("jmp %d\n", new_position);*/\
@@ -449,9 +453,9 @@ bool cpu_t_call(cpu_t* This)
 {
     ASSERT_OK(cpu_t, This);
     This->position++;
-    int new_position = *(size_t*)(This->program.chars + This->position);
+    int new_position = *(size_t*)(This->memory.storage+ This->position);
     This->position += sizeof(size_t);
-    if (!stack_t_push (&This->fu_stack, &This->position, sizeof (size_t)))
+    if (!stack_t_push (&This->stack, &This->position, sizeof (size_t)))
         return false;
     This->position = new_position;
     //printf ("call %d\n", new_position);
@@ -469,7 +473,7 @@ bool cpu_t_ret(cpu_t* This)
 {
     ASSERT_OK(cpu_t, This);
     size_t ret_position = 0;
-    if (!stack_t_pop (&This->fu_stack, &ret_position, sizeof(size_t)))
+    if (!stack_t_pop (&This->stack, &ret_position, sizeof(size_t)))
         return false;
     This->position = ret_position;
     //printf ("ret %d\n", (int)ret_position);
@@ -491,7 +495,7 @@ bool cpu_t_pop_mem_ ## _name(cpu_t* This)\
 {\
     ASSERT_OK(cpu_t, This);\
     This->position++;\
-    size_t address = *(size_t*)(This->program.chars + This->position);\
+    size_t address = *(size_t*)(This->memory.storage+ This->position);\
     This->position += sizeof (size_t);\
     char top[_size];\
     if (!stack_t_pop(&This->stack, top, _size))\
@@ -501,16 +505,15 @@ bool cpu_t_pop_mem_ ## _name(cpu_t* This)\
     return true;\
 }
 
-POP_MEM(db, 1)
-POP_MEM(w , 2)
-POP_MEM(dw, 4)
+#define VAR(_name, _nbytes) POP_MEM(_name, _nbytes)
+#include "var_sizes.h"
 
 #define PUSH_MEM(_name, _size) \
 bool cpu_t_push_mem_ ## _name(cpu_t* This) \
 {\
     ASSERT_OK(cpu_t, This);\
     This->position++;\
-    size_t address = *(size_t*)(This->program.chars + This->position);\
+    size_t address = *(size_t*)(This->memory.storage+ This->position);\
     This->position += sizeof(size_t);\
     char data[_size];\
     if (!memory_t_read (&This->memory, address, data, _size))\
@@ -521,41 +524,31 @@ bool cpu_t_push_mem_ ## _name(cpu_t* This) \
     return true;\
 }
 
-PUSH_MEM(db, 1)
-PUSH_MEM(w , 2)
-PUSH_MEM(dw, 4)
+#define VAR(_name, _nbytes) PUSH_MEM(_name, _nbytes)
+#include "var_sizes.h"
+#undef VAR
 
-
-bool cpu_t_set_program (cpu_t* This, const Buffer* program)
+bool cpu_t_load_program (cpu_t* This, const Buffer* program)
 {
-    buffer_destruct(&This->program);
-    if (!buffer_construct_copy(&This->program, program))
-        return false;
+    memory_t_erase(&This->memory);
+    memory_t_write(&This->memory, This->stack.size, program->chars, program->length);
     return true;
 }
 
 bool cpu_t_construct (cpu_t* This)
 {
     assert (This);
-    if (!buffer_construct_empty(&This->program, 1)){
-        cpu_t_destruct(This);
-        return false;
-    }
     if (!memory_t_construct(&This->memory, MEM_SIZE)){
         cpu_t_destruct(This);
         return false;
     }
-    // The program begins with 'end'
-    This->program.chars[0] = 0;
-    This->position = 0;
     This->flags = 0;
     memset (This->registers, 0, REG_SIZE * REG_NUMBER);
-    if (!stack_t_construct(&This->stack))
-    {
+    This->position = 0;
+    if (!stack_t_construct_no_alloc(&This->stack, This->memory.storage + This->memory.max_size - STACK_SIZE, STACK_SIZE)){
         cpu_t_destruct(This);
         return false;
     }
-
     This->state = true;
     return true;
 }
@@ -564,19 +557,17 @@ bool cpu_t_construct_copy(cpu_t* This, const cpu_t* other)
 {
     assert (This);
     ASSERT_OK(cpu_t, other);
-    buffer_construct_copy(&This->program, &other->program);
     This->position = other->position;
     memcpy (This->registers, other->registers, REG_SIZE * REG_NUMBER);
-    if (!stack_t_construct_copy(&This->stack, &other->stack)){
-        cpu_t_destruct(This);
-        return false;
-    }
     if (!memory_t_construct(&This->memory, other->memory.max_size)){
         cpu_t_destruct(This);
         return false;
     }
-
-    This->flags = 0;
+    if (!stack_t_construct_no_alloc(&This->stack, This->memory.storage, other->stack.size)){
+        cpu_t_destruct(This);
+        return false;
+    }
+    This->flags = other->flags;
     This->state = true;
     return true;
 }
@@ -585,9 +576,9 @@ void cpu_t_destruct (cpu_t* This)
 {
     assert (This);
     This->position = 0;
-    buffer_destruct(&This->program);
     memset (This->registers, 0, REG_SIZE * REG_NUMBER);
-    stack_t_destruct(&This->stack);
+    This->flags = 0;
+    stack_t_destruct_no_alloc(&This->stack);
     memory_t_destruct(&This->memory);
     This->state = false;
 }
@@ -595,7 +586,7 @@ void cpu_t_destruct (cpu_t* This)
 bool cpu_t_OK (const cpu_t* This)
 {
     assert (This);
-    return This->state && stack_t_OK(&This->stack) && buffer_OK (&This->program) && This->registers;
+    return This->state && stack_t_OK(&This->stack) && memory_t_OK(&This->memory) && This->registers;
 }
 
 void cpu_t_dump_ (const cpu_t* This, const char name[])
@@ -614,8 +605,8 @@ void cpu_t_dump_ (const cpu_t* This, const char name[])
     for (size_t i = 0; i < REG_NUMBER; i++)
         printf ("%*s[%1lu] %d\n", DUMP_INDENT, "", i, This->registers[i*REG_SIZE]);
     printf ("%*sprogram:\n", DUMP_INDENT, "");
-    for (size_t i = 0; i < This->program.length; i ++)
-        printf ("%02X ", (unsigned int)This->program.chars[i]);
+    for (char* i = This->memory.storage; i != This->stack.data; i++)
+        printf ("%02X ", (unsigned int)(*i));
     printf ("\n%*sstack:\n", DUMP_INDENT, "");
     stack_t_dump(&This->stack);
     printf(ANSI_COLOR_YELLOW "-----------------------------------------------------" ANSI_COLOR_RESET "\n");
@@ -633,7 +624,7 @@ bool cpu_t_push_ ## _type (cpu_t* This)\
 {\
     ASSERT_OK(cpu_t, This);\
     This->position ++;\
-    char* data = This->program.chars + This->position;\
+    char* data = This->memory.storage + This->position;\
     This->position += sizeof(_type);\
 \
     if (!stack_t_push(&This->stack, data, sizeof(_type))){\
@@ -659,9 +650,9 @@ bool cpu_t_ ## _name ## dup (cpu_t* This)\
     return true;\
 }
 
-DUP(db, 1)
-DUP(w,  2)
-DUP(dw, 4)
+#define VAR(_name, _nbytes) DUP(_name, _nbytes)
+#include "var_sizes.h"
+#undef VAR
 
 #define DUPD(_name, _nbytes)\
 bool cpu_t_ ## _name ## dupd (cpu_t* This)\
@@ -674,16 +665,16 @@ bool cpu_t_ ## _name ## dupd (cpu_t* This)\
     return true;\
 }
 
-DUPD(db, 1)
-DUPD(w,  2)
-DUPD(dw, 4)
+#define VAR(_name, _nbytes) DUPD(_name, _nbytes)
+#include "var_sizes.h"
+#undef VAR
 
 #define PUSH_REG(_name, _nbytes) \
 bool cpu_t_push_reg_ ## _name (cpu_t* This)\
 {\
     ASSERT_OK(cpu_t, This);\
     This->position ++;\
-    char address = This->program.chars[This->position];\
+    char address = This->memory.storage[This->position];\
     This->position ++;\
 \
     char* data = This->registers + address;\
@@ -695,16 +686,16 @@ bool cpu_t_push_reg_ ## _name (cpu_t* This)\
     return true;\
 }
 
-PUSH_REG(db, 1)
-PUSH_REG(w,  2)
-PUSH_REG(dw, 4)
+#define VAR(_name, _nbytes) PUSH_REG(_name, _nbytes)
+#include "var_sizes.h"
+#undef VAR
 
 #define POP_REG(_name, _nbytes) \
 bool cpu_t_pop_reg_ ## _name (cpu_t* This)\
 {\
     ASSERT_OK(cpu_t, This);\
     This->position ++;\
-    char address = This->program.chars[This->position];\
+    char address = This->memory.storage[This->position];\
     This->position ++;\
 \
     char* data = This->registers + address;\
@@ -716,9 +707,9 @@ bool cpu_t_pop_reg_ ## _name (cpu_t* This)\
     return true;\
 }
 
-POP_REG(db, 1)
-POP_REG(w,  2)
-POP_REG(dw, 4)
+#define VAR(_name, _nbytes) POP_REG(_name, _nbytes)
+#include "var_sizes.h"
+#undef VAR
 
 #define ARITHM(_name, _op, _type) \
 bool cpu_t_ ## _name (cpu_t* This) \
@@ -771,19 +762,24 @@ bool cpu_t_ ## _name (cpu_t* This)\
 POW(fpow, float)
 POW(pow, int)
 
-bool cpu_t_out (cpu_t* This)
-{
-    ASSERT_OK(cpu_t, This);
-    float top = 0;
-    if (!stack_t_pop(&This->stack, &top, sizeof(float))){
-        cpu_t_destruct(This);
-        ASSERT_OK(cpu_t, This);
-        return false;
-    }
-    printf ("%g\n", top);
-    ASSERT_OK(cpu_t, This);
-    return true;
+#define OUT(_name, _type, _spec) \
+bool cpu_t_ ## _name(cpu_t* This)\
+{\
+    ASSERT_OK(cpu_t, This);\
+    _type top = 0;\
+    if (!stack_t_pop(&This->stack, &top, sizeof(_type))){\
+        cpu_t_destruct(This);\
+        ASSERT_OK(cpu_t, This);\
+        return false;\
+    }\
+    printf ("[" #_type "]" _spec "\n", top);\
+    ASSERT_OK(cpu_t, This);\
+    return true;\
 }
+
+OUT(out, int, "%d")
+OUT(fout, float, "%g")
+OUT(cout, char , "%c")
 
 #define ABS(_name, _type) \
 bool cpu_t_ ## _name(cpu_t* This)\
@@ -808,30 +804,35 @@ bool cpu_t_ ## _name(cpu_t* This)\
 ABS(fabs, float)
 ABS(abs, int)
 
-bool cpu_t_in (cpu_t* This)
-{
-    ASSERT_OK(cpu_t, This);
-    float input = 0;
+#define IN(_name, _type, _spec) \
+bool cpu_t_ ## _name (cpu_t* This)\
+{\
+    ASSERT_OK(cpu_t, This);\
+    _type input = 0;\
+\
+    printf ("[" #_type "]>");\
+    scanf (_spec, &input);\
+    if (!stack_t_push(&This->stack, &input, sizeof(_type))){\
+        cpu_t_destruct(This);\
+        ASSERT_OK(cpu_t, This);\
+        return false;\
+    }\
+    ASSERT_OK(cpu_t, This);\
+    return true;\
+}\
 
-    printf (">");
-    scanf ("%f", &input);
-    if (!stack_t_push(&This->stack, &input, sizeof(float))){
-        cpu_t_destruct(This);
-        ASSERT_OK(cpu_t, This);
-        return false;
-    }
-    ASSERT_OK(cpu_t, This);
-    return true;
-}
+IN(in, int, "%d")
+IN(fin, float, "%f")
+IN(cin, char , "%c")
 // TODO: all functions are written in processor, we are only calling them
 //from define of each CMD_INFO with right argument
-bool cpu_t_execute (cpu_t* This)
+bool cpu_t_run (cpu_t* This)
 {
-    while (This->program.chars[This->position])
+    while (This->memory.storage[This->position])
     {
         bool is_done = false;
         #define CMD(name, key, shift, arguments) \
-        if (!is_done && This->program.chars[This->position] == key){\
+        if (!is_done && This->memory.storage[This->position] == key){\
             /*printf ("EXE: " #name "\n");*/\
             if (!cpu_t_ ## name (This))\
                 return false;\
@@ -846,6 +847,5 @@ bool cpu_t_execute (cpu_t* This)
 
     return true;
 }
-
 
 #endif // cpu_t_H_INCLUDED

@@ -29,12 +29,14 @@
 //! 'key_value' of the instruction is it's line number
 
 //^^^^^^^^^^^^^^^^^^^^^^^^
-// 0~19  NO ARGUMENTS
+// NO ARGUMENTS
 //^^^^^^^^^^^^^^^^^^^^^^^^
 #define RAW_CMD(name, shift_to_the_right, arguments_type)  CMD(name, __LINE__, shift_to_the_right, arguments_type)
 RAW_CMD (end, 0, ARG_NO) //End of the program
 RAW_CMD (err, 0, ARG_NO) //Error indicator
 RAW_CMD (out, 1, ARG_NO) //Standard output
+RAW_CMD (fout, 1, ARG_NO) //Standard output
+RAW_CMD (cout, 1, ARG_NO) //Standard output
 RAW_CMD (cadd, 1, ARG_NO) //Character [1 byte] addition
 RAW_CMD (csub, 1, ARG_NO) //Character [1 byte] subtraction
 RAW_CMD (add, 1, ARG_NO) //Integer addition
@@ -48,13 +50,15 @@ RAW_CMD (fmul, 1, ARG_NO) //Float multiplication
 RAW_CMD (fdiv, 1, ARG_NO) //Float division [rounds down]
 RAW_CMD (fpow, 1, ARG_NO) //Float power [rises integer in integer degree]
 RAW_CMD (ret, 0, ARG_NO) //Returns from the function by popping it's address from the function stack
-RAW_CMD (dbdup, 1, ARG_NO) //Duplicates the top byte of stack
-RAW_CMD (dbdupd, 1, ARG_NO) //Duplicates (doubles) top two elements of stack
-RAW_CMD (wdup, 1, ARG_NO) //Duplicates the top element of stack
-RAW_CMD (wdupd, 1, ARG_NO) //Duplicates (doubles) top two elements of stack
-RAW_CMD (dwdup, 1, ARG_NO) //Duplicates the top element of stack
-RAW_CMD (dwdupd, 1, ARG_NO) //Duplicates (doubles) top two elements of stack
+RAW_CMD (bytedup, 1, ARG_NO) //Duplicates the top byte of stack
+RAW_CMD (worddup, 1, ARG_NO) //Duplicates (doubles) top two elements of stack
+RAW_CMD (dworddup, 1, ARG_NO) //Duplicates the top element of stack
+RAW_CMD (bytedupd, 1, ARG_NO) //Duplicates (doubles) top two elements of stack
+RAW_CMD (worddupd, 1, ARG_NO) //Duplicates the top element of stack
+RAW_CMD (dworddupd, 1, ARG_NO) //Duplicates (doubles) top two elements of stack
 RAW_CMD (in , 1, ARG_NO) //Standard input
+RAW_CMD (fin , 1, ARG_NO) //Standard input
+RAW_CMD (cin , 1, ARG_NO) //Standard input
 RAW_CMD (abs, 1, ARG_NO) //Absolute value
 RAW_CMD (fabs, 1, ARG_NO) //Absolute value
 RAW_CMD (cmp, 1, ARG_NO) //Compares the TOP element with the PREVIOUS
@@ -63,29 +67,29 @@ RAW_CMD (ccmp, 1, ARG_NO) //Compares the TOP element with the PREVIOUS
 RAW_CMD (mod, 1, ARG_NO) //Reminder from dividing the TOP element by the PREVIOUS
 
 //^^^^^^^^^^^^^^^^^^^^^^^^
-// 20~39 OVERLOADED commands
+// OVERLOADED commands
 //^^^^^^^^^^^^^^^^^^^^^^^^
 RAW_CMD (push,      0, (ARG_NUM | ARG_REG | ARG_MEM | ARG_SIZ))
-RAW_CMD (push_mem_db,  0, ARG_OVL)
-RAW_CMD (push_mem_w ,  0, ARG_OVL)
-RAW_CMD (push_mem_dw,  0, ARG_OVL)
-RAW_CMD (push_reg_db,  0, ARG_OVL)
-RAW_CMD (push_reg_w,  0, ARG_OVL)
-RAW_CMD (push_reg_dw,  0, ARG_OVL)
+RAW_CMD (push_mem_byte,  0, ARG_OVL) // Pushes value from the given address to the stack
+RAW_CMD (push_mem_word ,  0, ARG_OVL)
+RAW_CMD (push_mem_dword,  0, ARG_OVL)
+RAW_CMD (push_reg_byte,  0, ARG_OVL) // Pushes value from the given register to the stack
+RAW_CMD (push_reg_word,  0, ARG_OVL)
+RAW_CMD (push_reg_dword,  0, ARG_OVL)
 RAW_CMD (push_int,  0, ARG_OVL)
 RAW_CMD (push_float,  0, ARG_OVL)
 RAW_CMD (push_char,  0, ARG_OVL)
 // Dummy command
 RAW_CMD  (pop,        0, (ARG_MEM | ARG_REG | ARG_SIZ))
-RAW_CMD  (pop_mem_db,  0, ARG_OVL)
-RAW_CMD  (pop_mem_w,   0, ARG_OVL)
-RAW_CMD  (pop_mem_dw,  0, ARG_OVL)
-RAW_CMD  (pop_reg_db,    0, ARG_OVL)
-RAW_CMD  (pop_reg_w,    0, ARG_OVL)
-RAW_CMD  (pop_reg_dw,    0, ARG_OVL)
+RAW_CMD  (pop_mem_byte,  0, ARG_OVL)
+RAW_CMD  (pop_mem_word,   0, ARG_OVL)
+RAW_CMD  (pop_mem_dword,  0, ARG_OVL)
+RAW_CMD  (pop_reg_byte,    0, ARG_OVL)
+RAW_CMD  (pop_reg_word,    0, ARG_OVL)
+RAW_CMD  (pop_reg_dword,    0, ARG_OVL)
 
 //^^^^^^^^^^^^^^
-// 40~60 LABEL commands
+// LABEL commands
 //^^^^^^^^^^^^^^
 // T = TOP, P = PREVIOUS
 RAW_CMD   (ja,   0, (ARG_POS | ARG_LBL)) //Jump if T >  P

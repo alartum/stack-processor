@@ -69,6 +69,7 @@ enum MAIN_ERRORS
 int print_help ()
 {
     Buffer help_file;
+    help_file.chars = 0;
     if (!buffer_construct (&help_file, "help.txt"))
     {
         perror ("#Something is wrong with the help file");
