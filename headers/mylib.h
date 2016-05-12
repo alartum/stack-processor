@@ -13,6 +13,10 @@
 #include "buffer.h"
 #include <stdbool.h>
 
+/// Indent of dump for pretty output
+static int DUMP_INDENT = 0;
+#define INDENT_VALUE 4
+
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 enum MAIN_ERRORS
 {
@@ -22,9 +26,17 @@ enum MAIN_ERRORS
     WRONG_USE
 };
 
+#define ANSI_COLOR_RED     "\x1b[31m"
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_YELLOW  "\x1b[33m"
+#define ANSI_COLOR_BLUE    "\x1b[34m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
+#define ANSI_COLOR_CYAN    "\x1b[36m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
 
-#define BOOM() printf("BOOM!\n")
-#define BADABOOM(code) printf("BADABOOM " ## code ## "\n")
+
+#define BOOM() printf("BOOM!\n\tFunction: %s\n\tFile: %s\n\tLine: %d\n\n", __FUNCTION__, __FILE__, __LINE__)
+#define BADABOOM(code) printf("BADABOOM " code "\n")
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #define open_file(file, name, mode, error_message) \
     FILE *(file) = fopen (name, mode);\
@@ -56,7 +68,7 @@ enum MAIN_ERRORS
 #endif
 int print_help ()
 {
-    Buffer help_file = {};
+    Buffer help_file;
     if (!buffer_construct (&help_file, "help.txt"))
     {
         perror ("#Something is wrong with the help file");
@@ -118,7 +130,8 @@ int print_help ()
             errno = EIO;\
         }\
         \
-        for (int i = 0; i < TRY_AMOUNT - 1; ++i)\
+        int i = 0;\
+        for (; i < TRY_AMOUNT - 1; ++i)\
         {\
             printf ("#%s>", name);\
             if (scanf ("%*s" SPEC, var) == 1)\
@@ -162,6 +175,7 @@ int print_help ()
     *(2) bool type_OK (type* what) | provides validation of structure, returns true if the structure is OK, false otherwise.
     */
     #define ASSERT_OK(type, what)\
+        assert (what);\
         if (!type ## _OK(what))\
         {\
             printf ("(!)ERROR: " #type " is broken!\nFunction: %s\nFile: %s\nLine: %d\n\n[LOG]\n\n", __FUNCTION__, __FILE__, __LINE__);\

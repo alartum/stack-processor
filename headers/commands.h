@@ -5,77 +5,101 @@
 #define MAX_PROGRAM_LENGTH 1024
 
 //Position argument (unsigned int)
-#define ARG_POS 1
+#define ARG_POS 0x1
 //Number argument (int or float)
-#define ARG_NUM 2
+#define ARG_NUM 0x2
 //address of memory
-#define ARG_MEM 2*2
+#define ARG_MEM 0x4
 //register
-#define ARG_REG 2*2*2
+#define ARG_REG 0x8
 //label
-#define ARG_LBL 2*2*2*2
+#define ARG_LBL 0x10
 //overloaded
-#define ARG_OVL 2*2*2*2*2
+#define ARG_OVL 0x20
 //no arguments
-#define ARG_NO  2*2*2*2*2*2
+#define ARG_NO  0x40
+//memory size: db, w, dw
+#define ARG_SIZ 0x80
 
 #endif // COMMANDS_H_INCLUDED
 //! FLAG TO INT AND FLOAT OPERATIONS
 /// Codes of CPU instructions
 #ifndef DEFINES_ONLY
 // CMD(name, key_value, shift_to_the_right, arguments_type)
+//! 'key_value' of the instruction is it's line number
 
 //^^^^^^^^^^^^^^^^^^^^^^^^
-// 0~19  NO ARGUM/home/alartum/Study/Proga/Processor/Assembler/main.c|289|ошибка: ENT commands
+// 0~19  NO ARGUMENTS
 //^^^^^^^^^^^^^^^^^^^^^^^^
-
-CMD (end, 0, 0, ARG_NO)
-CMD (err, 1, 0, ARG_NO)
-CMD (out, 2, 1, ARG_NO)
-CMD (add, 3, 1, ARG_NO)
-CMD (sub, 4, 1, ARG_NO)
-CMD (mul, 5, 1, ARG_NO)
-CMD (div, 6, 1, ARG_NO)
-CMD (pow, 7, 1, ARG_NO)
-CMD (ret, 8, 0, ARG_NO)
-CMD (dup, 9, 1, ARG_NO)
-CMD (in ,10, 1, ARG_NO)
-CMD (abs,11, 1, ARG_NO)
-CMD (les,12, 1, ARG_NO)
-CMD (leq,13, 1, ARG_NO)
-CMD (equ,14, 1, ARG_NO)
-CMD (neq,15, 1, ARG_NO)
-CMD (gre,16, 1, ARG_NO)
-CMD (grq,17, 1, ARG_NO)
-CMD (mod,18, 1, ARG_NO)
+#define RAW_CMD(name, shift_to_the_right, arguments_type)  CMD(name, __LINE__, shift_to_the_right, arguments_type)
+RAW_CMD (end, 0, ARG_NO) //End of the program
+RAW_CMD (err, 0, ARG_NO) //Error indicator
+RAW_CMD (out, 1, ARG_NO) //Standard output
+RAW_CMD (cadd, 1, ARG_NO) //Character [1 byte] addition
+RAW_CMD (csub, 1, ARG_NO) //Character [1 byte] subtraction
+RAW_CMD (add, 1, ARG_NO) //Integer addition
+RAW_CMD (sub, 1, ARG_NO) //Integer subtraction
+RAW_CMD (mul, 1, ARG_NO) //Integer multiplication
+RAW_CMD (div, 1, ARG_NO) //Integer division [rounds down]
+RAW_CMD (pow, 1, ARG_NO) //Integer power [rises integer in integer degree]
+RAW_CMD (fadd, 1, ARG_NO) //Float addition
+RAW_CMD (fsub, 1, ARG_NO) //Float subtraction
+RAW_CMD (fmul, 1, ARG_NO) //Float multiplication
+RAW_CMD (fdiv, 1, ARG_NO) //Float division [rounds down]
+RAW_CMD (fpow, 1, ARG_NO) //Float power [rises integer in integer degree]
+RAW_CMD (ret, 0, ARG_NO) //Returns from the function by popping it's address from the function stack
+RAW_CMD (dbdup, 1, ARG_NO) //Duplicates the top byte of stack
+RAW_CMD (dbdupd, 1, ARG_NO) //Duplicates (doubles) top two elements of stack
+RAW_CMD (wdup, 1, ARG_NO) //Duplicates the top element of stack
+RAW_CMD (wdupd, 1, ARG_NO) //Duplicates (doubles) top two elements of stack
+RAW_CMD (dwdup, 1, ARG_NO) //Duplicates the top element of stack
+RAW_CMD (dwdupd, 1, ARG_NO) //Duplicates (doubles) top two elements of stack
+RAW_CMD (in , 1, ARG_NO) //Standard input
+RAW_CMD (abs, 1, ARG_NO) //Absolute value
+RAW_CMD (fabs, 1, ARG_NO) //Absolute value
+RAW_CMD (cmp, 1, ARG_NO) //Compares the TOP element with the PREVIOUS
+RAW_CMD (fcmp, 1, ARG_NO) //Compares the TOP element with the PREVIOUS
+RAW_CMD (ccmp, 1, ARG_NO) //Compares the TOP element with the PREVIOUS
+RAW_CMD (mod, 1, ARG_NO) //Reminder from dividing the TOP element by the PREVIOUS
 
 //^^^^^^^^^^^^^^^^^^^^^^^^
 // 20~39 OVERLOADED commands
 //^^^^^^^^^^^^^^^^^^^^^^^^
-CMD (push,     20, 0, (ARG_NUM | ARG_REG | ARG_MEM))
-CMD (push_reg, 21, 0, ARG_OVL)
-CMD (push_mem, 22, 0, ARG_OVL)
-
+RAW_CMD (push,      0, (ARG_NUM | ARG_REG | ARG_MEM | ARG_SIZ))
+RAW_CMD (push_mem_db,  0, ARG_OVL)
+RAW_CMD (push_mem_w ,  0, ARG_OVL)
+RAW_CMD (push_mem_dw,  0, ARG_OVL)
+RAW_CMD (push_reg_db,  0, ARG_OVL)
+RAW_CMD (push_reg_w,  0, ARG_OVL)
+RAW_CMD (push_reg_dw,  0, ARG_OVL)
+RAW_CMD (push_int,  0, ARG_OVL)
+RAW_CMD (push_float,  0, ARG_OVL)
+RAW_CMD (push_char,  0, ARG_OVL)
 // Dummy command
-CMD  (pop,      23, 0, (ARG_MEM | ARG_REG))
-CMD  (pop_reg,  24, 0, ARG_OVL)
-CMD  (pop_mem,  25, 0, ARG_OVL)
+RAW_CMD  (pop,        0, (ARG_MEM | ARG_REG | ARG_SIZ))
+RAW_CMD  (pop_mem_db,  0, ARG_OVL)
+RAW_CMD  (pop_mem_w,   0, ARG_OVL)
+RAW_CMD  (pop_mem_dw,  0, ARG_OVL)
+RAW_CMD  (pop_reg_db,    0, ARG_OVL)
+RAW_CMD  (pop_reg_w,    0, ARG_OVL)
+RAW_CMD  (pop_reg_dw,    0, ARG_OVL)
 
 //^^^^^^^^^^^^^^
 // 40~60 LABEL commands
 //^^^^^^^^^^^^^^
-CMD   (ja,   41, 0, (ARG_POS | ARG_LBL))
-CMD   (jae,  42, 0, (ARG_POS | ARG_LBL))
-CMD   (jb,   43, 0, (ARG_POS | ARG_LBL))
-CMD   (jbe,  44, 0, (ARG_POS | ARG_LBL))
-CMD   (je,   45, 0, (ARG_POS | ARG_LBL))
-CMD   (jne,  46, 0, (ARG_POS | ARG_LBL))
-CMD   (jmp,  47, 0, (ARG_POS | ARG_LBL))
-CMD   (call, 48, 0, ARG_LBL            )
-CMD   (ca,   49, 0, ARG_LBL            )
-CMD   (cae,  50, 0, ARG_LBL            )
-CMD   (cb,   51, 0, ARG_LBL            )
-CMD   (cbe,  52, 0, ARG_LBL            )
-CMD   (ce,   53, 0, ARG_LBL            )
-CMD   (cne,  54, 0, ARG_LBL            )
+// T = TOP, P = PREVIOUS
+RAW_CMD   (ja,   0, (ARG_POS | ARG_LBL)) //Jump if T >  P
+RAW_CMD   (jae,  0, (ARG_POS | ARG_LBL)) //Jump if T >= P
+RAW_CMD   (jb,   0, (ARG_POS | ARG_LBL)) //Jump if T <  P
+RAW_CMD   (jbe,  0, (ARG_POS | ARG_LBL)) //Jump if T >= P
+RAW_CMD   (je,   0, (ARG_POS | ARG_LBL)) //Jump if T == P
+RAW_CMD   (jne,  0, (ARG_POS | ARG_LBL)) //Jump if T != P
+RAW_CMD   (jmp,  0, (ARG_POS | ARG_LBL)) //Jump [no condition]
+RAW_CMD   (call, 0, ARG_LBL            ) //Push the function address to the stack and then  call it
+RAW_CMD   (ca,   0, ARG_LBL            ) //Call if T >  P
+RAW_CMD   (cae,  0, ARG_LBL            ) //Call if T >= P
+RAW_CMD   (cb,   0, ARG_LBL            ) //Call if T <  P
+RAW_CMD   (cbe,  0, ARG_LBL            ) //Call if T <= P
+RAW_CMD   (ce,   0, ARG_LBL            ) //Call if T == P
+RAW_CMD   (cne,  0, ARG_LBL            ) //Call if T != P
 #endif

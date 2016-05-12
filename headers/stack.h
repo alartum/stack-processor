@@ -1,36 +1,35 @@
-
-#ifndef STACK_H_INCLUDED
-#define STACK_H_INCLUDED
-
+#include "mylib.h"
 #include <assert.h>
 #include <errno.h>
 #include <string.h>
 
-/// Type of stack's values.
-#define TYPE float
-/// Maximum number of elements in stack.
-#define STACK_SIZE 32
-#define MAX_PRINTED 8
+#ifndef STACK_H_INCLUDED
+#define STACK_H_INCLUDED
+
+/// Memory available for stack
+#define STACK_SIZE 1024
+#define MAX_PRINTED 32
 
 /// More comfortable dump
-#define Stack_dump(This) stack_dump_(This, #This)
-/// To be stylish
-#define stack_dump(This) Stack_dump(This)
-/// To be stylish
-#define Stack_OK(This) stack_OK(This)
+#define stack_t_dump(This) stack_t_dump_(This, #This)
+
+// Indent of the dump is declared in mylib
+extern int DUMP_INDENT;
 
 /**
 @brief Simple stack of integer
-Stack contains integer numbers and provides some operations with them
+stack_t contains integer numbers and provides some operations with them
 */
-typedef struct
+typedef struct stack_t stack_t;
+struct stack_t
 {
-    TYPE values [STACK_SIZE];/**< Array of values. */
-    TYPE* top;/**< Pointer to the top element of stack. */
+    char data[STACK_SIZE];/**< Array of values. */
+    char* top;/**< Pointer to the first byte of free space> */
     size_t size;/**< Number of elements in the stack. */
+    size_t max_size;
 
-    bool state;/**< State of the stack. true if valid, false otherwise. */
-} Stack;
+    bool is_valid;/**< State of the stack. true if valid, false otherwise. */
+};
 
 /**
 *@brief Standard stack constructor.
@@ -40,7 +39,7 @@ typedef struct
 *@return 1 (true) if success, 0 (false) otherwise.
 *@todo Dynamic memory management, so its OK that only true is returned by now
 */
-bool stack_construct (Stack* This);
+bool stack_t_construct (stack_t* This);
 
 /**
 *@brief Copy stack constructor.
@@ -50,7 +49,7 @@ bool stack_construct (Stack* This);
 *@param other The stack to copy from.
 *@return 1 (true) if success, 0 (false) otherwise.
 */
-bool stack_construct_copy (Stack* This, const Stack* other);
+bool stack_t_construct_copy (stack_t* This, const stack_t* other);
 
 /**
 *@brief Destructs the stack.
@@ -58,7 +57,7 @@ bool stack_construct_copy (Stack* This, const Stack* other);
 *Destructs the stack, setting its values to poison.
 *@param This Pointer to the stack to be destructed.
 */
-void stack_destruct (Stack* This);
+void stack_t_destruct (stack_t* This);
 
 /**
 *@brief Validates the stack.
@@ -67,7 +66,7 @@ void stack_destruct (Stack* This);
 *@param This Pointer to the stack to be checked.
 *@return true if the stack is valid, false otherwise.
 */
-bool Stack_OK (const Stack* This);
+bool stack_t_OK (const stack_t* This);
 
 /**
 *@brief Prints stack's dump.
@@ -75,7 +74,7 @@ bool Stack_OK (const Stack* This);
 *Outputs the current state of stack.
 *@param This Pointer to the stack to be dumped.
 */
-void stack_dump_ (const Stack* This, const char name[]);
+void stack_t_dump_ (const stack_t* This, const char name[]);
 
 /**
 *@brief Pushes value to stack.
@@ -85,7 +84,7 @@ void stack_dump_ (const Stack* This, const char name[]);
 *@param value Value to be pushed.
 *@return true if success, false otherwise
 */
-bool stack_push (Stack* This, TYPE value);
+bool stack_t_push (stack_t* This, const void* data, size_t size);
 
 /**
 *@brief Pops value from the stack.
@@ -94,145 +93,131 @@ bool stack_push (Stack* This, TYPE value);
 *@param This Pointer to the stack to perform operation on.
 *@param value Value that was popped. In case it wasn't successful, invalidates stack.
 */
-bool stack_pop (Stack* This, TYPE* value);
+bool stack_t_pop (stack_t* This, void* dest, size_t size);
 
-bool stack_construct (Stack *This)
+bool stack_t_construct (stack_t *This)
 {
     assert (This);
-    This->top = NULL;
+    This->top = This->data;
     This->size = 0;
-    This->state = true;
+    This->max_size = STACK_SIZE;
+    This->is_valid= true;
 
     return true;
 }
 
-bool stack_construct_copy (Stack* This, const Stack* other)
+bool stack_t_construct_copy (stack_t* This, const stack_t* other)
 {
     assert (This);
-    ASSERT_OK(Stack, other);
+    ASSERT_OK(stack_t, other);
     if (other->size == 0)
     {
-        This->top = NULL;
-        This->state = true;
+        This->top = This->data;
+        This->is_valid = true;
         This->size = 0;
 
         return true;
     }
     else
     {
-        memcpy (This->values, other->values, sizeof(TYPE)*other->size);
-        if (!This->values)
+        memcpy (This->data, other->data, other->size);
+        if (!This->data)
         {
             errno = EFAULT;
-            stack_destruct(This);
+            stack_t_destruct(This);
             return false;
         }
         This->size = other->size;
-        This->top = This->values + (This->size - 1);
-        This->state = true;
+        This->top = This->data + This->size;
+        This->is_valid = true;
 
         return true;
     }
-    ASSERT_OK(Stack, This);
-    ASSERT_OK(Stack, other);
+    ASSERT_OK(stack_t, This);
+    ASSERT_OK(stack_t, other);
 }
 
-void stack_destruct (Stack* This)
+void stack_t_destruct (stack_t* This)
 {
     assert (This);
     This->top = NULL;
     This->size = 0;
     // Destruction must work always
-    This->state = false;
+    This->is_valid = false;
 }
 
-bool Stack_OK (const Stack* This)
+bool stack_t_OK (const stack_t* This)
 {
     assert (This);
-    return This->state && (!This->top || (This->top == (This->values + (This->size - 1))));
+    return This->is_valid && (!This->top || (This->top == (This->data + This->size)));
 }
 
-void stack_dump_ (const Stack* This, const char name[])
+void stack_t_dump_ (const stack_t* This, const char name[])
 {
+    DUMP_INDENT += INDENT_VALUE;
     assert (This);
-    printf ("%s = Stack (", name);
-    if (Stack_OK(This))
-        printf ("ok)\n");
+    printf ("%s = " ANSI_COLOR_BLUE "stack_t" ANSI_COLOR_RESET " (", name);
+    if (stack_t_OK(This))
+        printf (ANSI_COLOR_GREEN "ok" ANSI_COLOR_RESET ")\n");
     else
-        printf ("ERROR)\n");
-    printf ("{\n");
-    printf ("    state = %d\n", This->state);
-    printf ("    top = %p\n", This->top);
-    printf ("    size = %lu\n", This->size);
-    printf ("    values:\n");
-
+        printf (ANSI_COLOR_RED "ERROR" ANSI_COLOR_RESET ")\n");
+    printf(ANSI_COLOR_YELLOW "-----------------------------------------------------" ANSI_COLOR_RESET "\n");
+    printf ("%*stop = %p\n", DUMP_INDENT, "", This->top);
+    printf ("%*ssize = %lu\n", DUMP_INDENT, "", This->size);
+    /// The stack data is void now, we don't know the type of the elements
+    printf ("%*sdata:\n", DUMP_INDENT, "");
+    DUMP_INDENT += INDENT_VALUE;
     if (This->top != NULL)
     {
         int i = 0;
-        for (; (This->values + i)!= This->top && i < MAX_PRINTED; i ++)
-            printf ("        ->[%d] %g\n", i, This->values[i]);
+        for (; (This->data + i)!= This->top && i < MAX_PRINTED; i ++)
+            printf ("%*s" ANSI_COLOR_MAGENTA ">[%3d]" ANSI_COLOR_RESET " %02X\n", DUMP_INDENT-1, "", i, (unsigned int)(This->data[i] & 0xFF));
         // Printing top
-        printf ("        -->[%d] %g\n", i, This->values[i]);
+        printf ("%*s" ANSI_COLOR_CYAN ">>[%3d]" ANSI_COLOR_RESET " %02X\n", DUMP_INDENT-2, "", i, (unsigned int)(This->data[i] & 0xFF));
         i++;
         for (; i < MAX_PRINTED; i ++)
-            printf ("          [%d] %g\n", i, This->values[i]);
+            printf ("%*s[%3d] %02X\n", DUMP_INDENT, "", i, (unsigned int)(This->data[i] & 0xFF));
     }
     else
-        for (int i = 0; i < MAX_PRINTED; i ++)
-            printf ("          [%d] %g\n", i, This->values[i]);
-    printf ("}\n");
+        printf ("%*s" ANSI_COLOR_YELLOW "[EMPTY]" ANSI_COLOR_RESET "\n", DUMP_INDENT, "");
+    DUMP_INDENT -= INDENT_VALUE;
+    printf(ANSI_COLOR_YELLOW "-----------------------------------------------------" ANSI_COLOR_RESET "\n");
+    DUMP_INDENT -= INDENT_VALUE;
 }
 
-bool stack_push (Stack* This, TYPE value)
+bool stack_t_push (stack_t* This, const void* data, size_t nbytes)
 {
-    ASSERT_OK(Stack, This);
-    if (This->top == NULL)
-    {
-        This->top = This->values;
-        *This->top = value;
-        This->size = 1;
-
-        ASSERT_OK(Stack, This);
+    ASSERT_OK(stack_t, This);
+    This->size += nbytes;
+    if (This->size <= This->max_size){
+        memcpy(This->top, data, nbytes);
+        This->top += nbytes;
+        ASSERT_OK(stack_t, This);
         return true;
     }
-    else if (This->size == STACK_SIZE)
-    {
-        stack_destruct(This);
+    else{
+        stack_t_destruct(This);
         return false;
     }
-    else
-    {
-        *(++ This->top) = value;
-        This->size ++;
-    }
-    ASSERT_OK(Stack, This);
+    ASSERT_OK(stack_t, This);
 
     return true;
 }
 
-bool stack_pop (Stack* This, TYPE* value)
+bool stack_t_pop (stack_t* This, void* dest, size_t nbytes)
 {
-    assert (value);
-    ASSERT_OK(Stack, This);
-    if (This->top == NULL)
-    {
-        stack_destruct(This);
+    assert (This);
+    ASSERT_OK(stack_t, This);
+
+    if (This->size >= nbytes){
+        This->size -= nbytes;
+        This->top -= nbytes;
+        memcpy(dest, This->top, nbytes);
+        return true;
+    }
+    else{
+        stack_t_destruct(This);
         return false;
-    }
-    else if (This->top == This->values)
-    {
-        This->top = NULL;
-        This->size = 0;
-        *value = This->values[0];
-        ASSERT_OK(Stack, This);
-        return true;
-    }
-    else
-    {
-        This->size --;
-        *value = (*(This->top --));
-        ASSERT_OK(Stack, This);
-        return true;
     }
 }
 
