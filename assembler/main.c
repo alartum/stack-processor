@@ -24,7 +24,7 @@ enum PARSING_STATE
     DONE
 };
 
-typedef struct label_t label_t
+typedef struct label_t label_t;
 struct label_t
 {
     char* name;
@@ -32,10 +32,12 @@ struct label_t
     short counter;
 };
 
-size_t assemble (const Buffer* source, Buffer* assembled, label_t* labels);
+size_t assemble (const Buffer* source, Buffer* assembled, label_t* labels, bool show_warn);
 
 int main (int argc, char* argv[])
 {
+    // Not using it
+    (void)DUMP_INDENT;
     //^^^^^^^^^^^^^^^^^^^^^^^^^
     //Default part BEGIN
     //^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -59,7 +61,7 @@ int main (int argc, char* argv[])
     //Default part END
     //Buffer BEGIN
     //^^^^^^^^^^^^^^^^^^^^^^^^^
-    Buffer buffer = {};
+    Buffer buffer;
     if (!buffer_construct (&buffer, inName))
     {
         perror ("#Input error");
@@ -81,9 +83,9 @@ int main (int argc, char* argv[])
     }
 
     //printf ("FIRST RUN:\n");
-    assemble(&buffer, &assembled, labels);
+    assemble(&buffer, &assembled, labels, false);
     //printf ("SECOND RUN:\n");
-    size_t writing_pos = assemble(&buffer, &assembled, labels);
+    size_t writing_pos = assemble(&buffer, &assembled, labels, true);
     if (!writing_pos)
     {
         printf ("Assemble error\n");
@@ -123,9 +125,9 @@ int main (int argc, char* argv[])
     return NO_ERROR;
 }
 
-size_t assemble(const Buffer* source, Buffer* assembled, label_t* labels)
+size_t assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool show_warn)
 {
-    Buffer buffer = {};
+    Buffer buffer;
     buffer_construct_copy (&buffer, source);
 
     char* nextLinePtr = buffer.chars;
@@ -187,7 +189,7 @@ size_t assemble(const Buffer* source, Buffer* assembled, label_t* labels)
                     continue;
                 }
                 else{
-                    printf ("Parsing error\n");
+                    if (show_warn) printf ("Parsing error\n");
                     return 0;
                 }
                 break;
@@ -228,25 +230,62 @@ size_t assemble(const Buffer* source, Buffer* assembled, label_t* labels)
                 }
                 #include "commands.h"
                 #undef CMD
+
+                #define VAR(_name, _size) \
+                if ((state == CMD) && (!strcmp (word, #_name))){\
+                    /*printf ("%s ", #name);*/\
+                    writing_pos += _size;\
+                    state = DONE;\
+                }
+                #include "var_sizes.h"
+                #undef VAR
+                if (state == CMD){
+                    // If decimal point is detected we'll treat it as float value
+                    int word_len = strlen(word);
+                    if (strchr(word, '.')){
+                        float float_num = 0;
+                        //printf ("(%f)", num);
+                        if (sscanf (word, "%f", &float_num) == word_len){
+                            *(float*)(assembled->chars+writing_pos) = float_num;
+                            writing_pos += sizeof(float);
+                            state = DONE;
+                        }
+                    }
+                    else{
+                        int int_num = 0;
+                        char char_num = 0;
+                        //printf ("(%f)", num);
+                        if (sscanf (word, "%d", &int_num) == word_len){
+                            *(int*)(assembled->chars+writing_pos) = int_num;
+                            writing_pos += sizeof(int);
+                            state = DONE;
+                        }
+                        else if (sscanf (word, "'%c'", &char_num) == word_len){
+                            *(char*)(assembled->chars+writing_pos) = char_num;
+                            writing_pos += sizeof(char);
+                            state = DONE;
+                        }
+                    }
+                }
                 char* dots_ptr = strchr (word, ':');
                 if (dots_ptr){
                     *dots_ptr = '\0';
                     state = DONE;
                     int i = 0;
-                    for (; labels[i].position != -1; i++){
+                    for (; labels[i].position != SIZE_MAX; i++){
                         if (!strcmp (labels[i].name, word)){
                             if (labels[i].counter < 2){
                                 labels[i].counter ++;
                                 break;
                             }
                             else{
-                                printf ("Multiple label definition: %s\n", word);
+                                if (show_warn) printf ("Multiple label definition: %s\n", word);
                                 buffer_destruct(&buffer);
                                 return 0;
                             }
                         }
                     }
-                    if (labels[i].position == -1){
+                    if (labels[i].position == SIZE_MAX){
                         labels[i].name = strdup (word);
                         labels[i].counter ++;
                         labels[i].position = writing_pos;
@@ -255,7 +294,7 @@ size_t assemble(const Buffer* source, Buffer* assembled, label_t* labels)
                     state = DONE;
                 }
                 if (state == CMD){
-                    printf ("\nUnknown command in line #%lu: %s\n", lineN, word);
+                    if (show_warn) printf ("\nUnknown command in line #%lu: %s\n", lineN, word);
                     buffer_destruct(&buffer);
                     assembled->chars[writing_pos] = (char)cmd_err;
                     return 0;
@@ -263,7 +302,11 @@ size_t assemble(const Buffer* source, Buffer* assembled, label_t* labels)
 
                 break;
             case ARG:
-                size_t word_len = strlen(word);
+                ;
+                int word_len = strlen(word);
+                /////////////////////////////////////////////
+                //// SIZE OPERAND /////////////////////////
+                /////////////////////////////////////////////
                 if ((state != DONE) && (arg_type & ARG_SIZ)){
                     bool size_done = false;
                     #define CHECK_SIZE(_name, _offset)\
@@ -273,17 +316,20 @@ size_t assemble(const Buffer* source, Buffer* assembled, label_t* labels)
                     }
                     // Changing command identifier to the momory's one
                     // They follow each other, so cmd+2 will give us the mem variant
-                    CHECK_SIZE(db, 1)
-                    CHECK_SIZE(w,  2)
-                    CHECK_SIZE(dw, 3)
+                    CHECK_SIZE(byte, 1)
+                    CHECK_SIZE(word,  2)
+                    CHECK_SIZE(dword, 3)
                     if (size_done != true){
-                        printf ("\nCan't find size specifier in line #%lu: %s\n", lineN, word);
+                        if (show_warn) printf ("\nCan't find size specifier in line #%lu: %s\n", lineN, word);
                         buffer_destruct(&buffer);
                         assembled->chars[writing_pos] = (char)cmd_err;
                         return 0;
                     }
                 }
                 //printf ("Parsing: <%s> ", word);
+                /////////////////////////////////////////////
+                //// POSITION OPERAND /////////////////////////
+                /////////////////////////////////////////////
                 if ((state != DONE) && (arg_type & ARG_POS)){
                     size_t pos = 0;
                     if (sscanf (word, "%lu", &pos) == word_len){
@@ -293,9 +339,12 @@ size_t assemble(const Buffer* source, Buffer* assembled, label_t* labels)
                         state = DONE;
                     }
                 }
+                /////////////////////////////////////////////
+                //// NUMBER OPERAND /////////////////////////
+                /////////////////////////////////////////////
                 if ((state != DONE) && (arg_type & ARG_NUM)){
                     // If decimal point is detected we'll treat it as float value
-                    if (strchr(word, '.'){
+                    if (strchr(word, '.')){
                         float float_num = 0;
                         //printf ("(%f)", num);
                         if (sscanf (word, "%f", &float_num) == word_len){
@@ -307,31 +356,70 @@ size_t assemble(const Buffer* source, Buffer* assembled, label_t* labels)
                     }
                     else{
                         int int_num = 0;
+                        char char_num = 0;
                         //printf ("(%f)", num);
                         if (sscanf (word, "%d", &int_num) == word_len){
                             *(int*)(assembled->chars+writing_pos) = int_num;
                             assembled->chars[writing_pos - 1] += 7;
                             writing_pos += sizeof(int);
-                            state = DONE
+                            state = DONE;
                         }
-                        else if (sscanf (word, "'%c'", &int_num) == word_len){
-                            char char_num = 0;
+                        else if (sscanf (word, "'%c'", &char_num) == word_len){
                             *(char*)(assembled->chars+writing_pos) = char_num;
                             assembled->chars[writing_pos - 1] += 9;
                             writing_pos += sizeof(char);
-                            state = DONE
+                            state = DONE;
                         }
                     }
                 }
+                /////////////////////////////////////////////
+                //// MEMORY OPERAND /////////////////////////
+                /////////////////////////////////////////////
                 if ((state != DONE) && (arg_type & ARG_MEM)){
-                    size_t mem = 0;
-                    if (sscanf (word, "[%lu]", &mem) == word_len){
-                        //printf ("[%u]", mem);
-                        *(size_t*)(assembled->chars + writing_pos) = mem;
-                        writing_pos += sizeof(size_t);
-                        state = DONE;
+                    if (*word == '['){
+                        word ++;
+                        char* p = word;
+                        for (; *p != ']' && *p; p++);
+                        if (*p != ']'){
+                            if (show_warn) printf ("\nWrong address (']' is missed?) in line #%lu: %s\n", lineN, word);
+                            labels_success = false;
+                            state = DONE;
+                        }
+                        else{
+                            *p = 0;
+                            size_t mem = 0;
+                            for (size_t i = 0; labels[i].position != SIZE_MAX && state != DONE; i++){
+                                if (!strcmp (labels[i].name, word)){
+                                    //printf ("[%s]{%d}", word, labels[i].position);
+                                    *(size_t*)(assembled->chars+writing_pos) = labels[i].position;
+                                    writing_pos += sizeof(size_t);
+                                    state = DONE;
+                                }
+                            }
+                            if (state != DONE && sscanf (word, "%lu", &mem) == word_len){
+                                //printf ("[%u]", mem);
+                                *(size_t*)(assembled->chars + writing_pos) = mem;
+                                writing_pos += sizeof(size_t);
+                                state = DONE;
+                            }
+                            if (state != DONE){
+                                if (show_warn) {
+                                    printf ("\nWrong address (format problem?) in line #%lu: %s\n", lineN, word);
+                                    buffer_destruct(&buffer);
+                                    assembled->chars[writing_pos] = (char)cmd_err;
+                                    return 0;
+                                }
+                                *(size_t*)(assembled->chars+writing_pos) = SIZE_MAX;
+                                writing_pos += sizeof(size_t);
+                                labels_success = false;
+                                state = DONE;// Just to be sure
+                            }
+                        }
                     }
                 }
+                /////////////////////////////////////////////
+                //// REGISTER OPERAND ///////////////////////
+                /////////////////////////////////////////////
                 if ((state != DONE) && (arg_type & ARG_REG)){
                     //printf ("[Wr_pos: %s]", word);
                     #define ADDRESS(name, address, size, offset) \
@@ -347,12 +435,15 @@ size_t assemble(const Buffer* source, Buffer* assembled, label_t* labels)
                     #include "reg_address.h"
                     #undef ADDRESS
                 }
+                /////////////////////////////////////////////
+                //// LABEL OPERAND //////////////////////////
+                /////////////////////////////////////////////
                 if ((state != DONE) && (arg_type & ARG_LBL)){
                     for (size_t i = 0; labels[i].position != SIZE_MAX && state != DONE; i++){
                         if (!strcmp (labels[i].name, word)){
                             //printf ("[%s]{%d}", word, labels[i].position);
                             *(size_t*)(assembled->chars+writing_pos) = labels[i].position;
-                            writing_pos += sizeof(int);
+                            writing_pos += sizeof(size_t);
                             state = DONE;
                         }
                     }
@@ -363,7 +454,6 @@ size_t assemble(const Buffer* source, Buffer* assembled, label_t* labels)
                     }
                     labels_success = false;
                     state = DONE;// Just to be sure
-
                 }
                 if (state != DONE)
                 {
