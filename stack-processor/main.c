@@ -46,8 +46,8 @@ int main (int argc, char* argv[])
     buffer_construct (&program, prog_name);
     cpu_t cpu;
     cpu_t_construct(&cpu);
-    cpu_t_set_program(&cpu, &program);
-    if (!cpu_t_execute(&cpu))
+    cpu_t_load_program(&cpu, &program);
+    if (!cpu_t_run(&cpu))
     {
         cpu_t_destruct(&cpu);
         COMMENT ("Runtime error occured!");
