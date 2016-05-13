@@ -7,7 +7,6 @@
 #define STACK_H_INCLUDED
 
 #define MAX_PRINTED 32
-
 /// More comfortable dump
 #define stack_t_dump(This) stack_t_dump_(This, #This)
 

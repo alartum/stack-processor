@@ -32,7 +32,7 @@
 // NO ARGUMENTS
 //^^^^^^^^^^^^^^^^^^^^^^^^
 #define RAW_CMD(name, shift_to_the_right, arguments_type)  CMD(name, __LINE__, shift_to_the_right, arguments_type)
-RAW_CMD (end, 0, ARG_NO) //End of the program
+RAW_CMD (stop, 0, ARG_NO) //End of the program
 RAW_CMD (err, 0, ARG_NO) //Error indicator
 RAW_CMD (out, 1, ARG_NO) //Standard output
 RAW_CMD (fout, 1, ARG_NO) //Standard output
@@ -87,7 +87,14 @@ RAW_CMD  (pop_mem_dword,  0, ARG_OVL)
 RAW_CMD  (pop_reg_byte,    0, ARG_OVL)
 RAW_CMD  (pop_reg_word,    0, ARG_OVL)
 RAW_CMD  (pop_reg_dword,    0, ARG_OVL)
-
+RAW_CMD  (load,             1, ARG_SIZ)
+RAW_CMD  (load_byte,        1, ARG_OVL)
+RAW_CMD  (load_word,        1, ARG_OVL)
+RAW_CMD  (load_dword,       1, ARG_OVL)
+RAW_CMD  (store,            1, ARG_SIZ)
+RAW_CMD  (store_byte,       1, ARG_OVL)
+RAW_CMD  (store_word,       1, ARG_OVL)
+RAW_CMD  (store_dword,      1, ARG_OVL)
 //^^^^^^^^^^^^^^
 // LABEL commands
 //^^^^^^^^^^^^^^
