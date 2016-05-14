@@ -388,6 +388,17 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                 //// NUMBER OPERAND /////////////////////////
                 /////////////////////////////////////////////
                 if ((state != DONE) && (arg_type & ARG_NUM)){
+                    for (unsigned i = 0; labels[i].position != UINT_MAX && state != DONE; i++){
+                        if (!strcmp (labels[i].name, word)){
+                            //printf ("[%s]{%d}", word, labels[i].position);
+                            // If the command is pop
+                            if (!(arg_type^ARG_SIZ))
+                                assembled->chars[writing_pos - 1] += 7;
+                            *(unsigned*)(assembled->chars+writing_pos) = labels[i].position;
+                            writing_pos += sizeof(unsigned);
+                            state = DONE;
+                        }
+                    }
                     #define READ_CONST(_type, _spec, _offset) \
                     _type _type##_num = 0;\
                     if (state != DONE && sscanf (word, _spec, &(_type##_num))){\
@@ -443,7 +454,10 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                         assembled->chars[writing_pos] = (char)cmd_err;
                         return 0;
                     }
-                    word = strtok (NULL, "");
+                    if (!(arg_type^ARG_SIZ))
+                        state = DONE;
+                    else
+                        word = strtok (NULL, "");
                 }
                 //printf ("Parsing: <%s> ", word);
                 /////////////////////////////////////////////
@@ -511,6 +525,9 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                     for (unsigned i = 0; labels[i].position != UINT_MAX && state != DONE; i++){
                         if (!strcmp (labels[i].name, word)){
                             //printf ("[%s]{%d}", word, labels[i].position);
+                            // If the command is pop
+                            if (!(arg_type^ARG_SIZ))
+                                assembled->chars[writing_pos - 1] += 7;
                             *(unsigned*)(assembled->chars+writing_pos) = labels[i].position;
                             writing_pos += sizeof(unsigned);
                             state = DONE;

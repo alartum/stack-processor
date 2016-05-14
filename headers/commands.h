@@ -51,53 +51,54 @@ RAW_CMD (fdiv, 1, ARG_NO) //Float division [rounds down]
 RAW_CMD (fpow, 1, ARG_NO) //Float power [rises integer in integer degree]
 RAW_CMD (ret, 0, ARG_NO) //Returns from the function by popping it's address from the function stack
 RAW_CMD (bytedup, 1, ARG_NO) //Duplicates the top byte of stack
-RAW_CMD (worddup, 1, ARG_NO) //Duplicates (doubles) top two elements of stack
-RAW_CMD (dworddup, 1, ARG_NO) //Duplicates the top element of stack
-RAW_CMD (bytedupd, 1, ARG_NO) //Duplicates (doubles) top two elements of stack
-RAW_CMD (worddupd, 1, ARG_NO) //Duplicates the top element of stack
-RAW_CMD (dworddupd, 1, ARG_NO) //Duplicates (doubles) top two elements of stack
-RAW_CMD (in , 1, ARG_NO) //Standard input
-RAW_CMD (fin , 1, ARG_NO) //Standard input
-RAW_CMD (cin , 1, ARG_NO) //Standard input
-RAW_CMD (abs, 1, ARG_NO) //Absolute value
-RAW_CMD (fabs, 1, ARG_NO) //Absolute value
-RAW_CMD (cmp, 1, ARG_NO) //Compares the TOP element with the PREVIOUS
-RAW_CMD (fcmp, 1, ARG_NO) //Compares the TOP element with the PREVIOUS
-RAW_CMD (ccmp, 1, ARG_NO) //Compares the TOP element with the PREVIOUS
-RAW_CMD (mod, 1, ARG_NO) //Reminder from dividing the TOP element by the PREVIOUS
+RAW_CMD (worddup, 1, ARG_NO) //Duplicates (doubles) top 2 bytes
+RAW_CMD (dworddup, 1, ARG_NO) //Duplicates the top 4 bytes of stack
+RAW_CMD (bytedupd, 1, ARG_NO) //Duplicates 2 top 1 byte elements of the stack
+RAW_CMD (worddupd, 1, ARG_NO) //Duplicates 2 top 2 byte elements of the stack
+RAW_CMD (dworddupd, 1, ARG_NO) //Duplicates 2 top 4 byte elements of the stack
+RAW_CMD (in , 1, ARG_NO) //Standard input [int]
+RAW_CMD (fin , 1, ARG_NO) //Standard input [float]
+RAW_CMD (cin , 1, ARG_NO) //Standard input [char]
+RAW_CMD (abs, 1, ARG_NO) //Absolute value [int]
+RAW_CMD (fabs, 1, ARG_NO) //Absolute value [float]
+RAW_CMD (cmp, 1, ARG_NO) //Compares the TOP element with the PREVIOUS [int]
+RAW_CMD (fcmp, 1, ARG_NO) //Compares the TOP element with the PREVIOUS [float]
+RAW_CMD (ccmp, 1, ARG_NO) //Compares the TOP element with the PREVIOUS [char]
+RAW_CMD (mod, 1, ARG_NO) //Reminder from dividing the TOP element by the PREVIOUS [int]
 
 //^^^^^^^^^^^^^^^^^^^^^^^^
 // OVERLOADED commands
 //^^^^^^^^^^^^^^^^^^^^^^^^
-RAW_CMD (push,      0, (ARG_NUM | ARG_REG | ARG_MEM | ARG_SIZ))
-RAW_CMD (push_mem_byte,  0, ARG_OVL) // Pushes value from the given address to the stack
-RAW_CMD (push_mem_word ,  0, ARG_OVL)
-RAW_CMD (push_mem_dword,  0, ARG_OVL)
-RAW_CMD (push_reg_byte,  0, ARG_OVL) // Pushes value from the given register to the stack
-RAW_CMD (push_reg_word,  0, ARG_OVL)
-RAW_CMD (push_reg_dword,  0, ARG_OVL)
-RAW_CMD (push_int,  0, ARG_OVL)
-RAW_CMD (push_float,  0, ARG_OVL)
-RAW_CMD (push_char,  0, ARG_OVL)
+RAW_CMD (push,      0, (ARG_NUM | ARG_REG | ARG_MEM | ARG_SIZ | ARG_LBL)) // Pushes something to the stack
+RAW_CMD (push_mem_byte,  0, ARG_OVL) // Pushes value from the given address to the stack [1 byte]
+RAW_CMD (push_mem_word ,  0, ARG_OVL) // Pushes value from the given address to the stack [2 bytes]
+RAW_CMD (push_mem_dword,  0, ARG_OVL) // Pushes value from the given address to the stack [4 bytes]
+RAW_CMD (push_reg_byte,  0, ARG_OVL) // Pushes value from the given register to the stack [1 byte]
+RAW_CMD (push_reg_word,  0, ARG_OVL) // Pushes value from the given register to the stack [2 byte]
+RAW_CMD (push_reg_dword,  0, ARG_OVL) // Pushes value from the given register to the stack [4 byte]
+RAW_CMD (push_int,  0, ARG_OVL) // Pushes the given [int] value to the stack
+RAW_CMD (push_float,  0, ARG_OVL) // Pushes the given [float] value to the stack
+RAW_CMD (push_char,  0, ARG_OVL) // Pushes the given [char] value to the stack (format: 'a')
 // Dummy command
-RAW_CMD  (pop,        0, (ARG_MEM | ARG_REG | ARG_SIZ))
-RAW_CMD  (pop_mem_byte,  0, ARG_OVL)
-RAW_CMD  (pop_mem_word,   0, ARG_OVL)
-RAW_CMD  (pop_mem_dword,  0, ARG_OVL)
-RAW_CMD  (pop_reg_byte,    0, ARG_OVL)
-RAW_CMD  (pop_reg_word,    0, ARG_OVL)
-RAW_CMD  (pop_reg_dword,    0, ARG_OVL)
-RAW_CMD  (load,             1, ARG_SIZ)
-RAW_CMD  (load_byte,        1, ARG_OVL)
-RAW_CMD  (load_word,        1, ARG_OVL)
-RAW_CMD  (load_dword,       1, ARG_OVL)
-RAW_CMD  (store,            1, ARG_SIZ)
-RAW_CMD  (store_byte,       1, ARG_OVL)
-RAW_CMD  (store_word,       1, ARG_OVL)
-RAW_CMD  (store_dword,      1, ARG_OVL)
+RAW_CMD  (pop,        0, (ARG_MEM | ARG_REG | ARG_SIZ)) // Poppes something from the stack
+RAW_CMD  (pop_mem_byte,  0, ARG_OVL) // Poppes value from the stack to the given address [1 byte]
+RAW_CMD  (pop_mem_word,   0, ARG_OVL) // Poppes value from the stack to the given address [2 bytes]
+RAW_CMD  (pop_mem_dword,  0, ARG_OVL) // Poppes value from the stack to the given address [4 bytes]
+RAW_CMD  (pop_reg_byte,    0, ARG_OVL) // Poppes value from the stack to the given register [1 byte]
+RAW_CMD  (pop_reg_word,    0, ARG_OVL) // Poppes value from the stack to the given register [2 byte]
+RAW_CMD  (pop_reg_dword,    0, ARG_OVL) // Poppes value from the stack to the given register [4 byte]
+RAW_CMD  (load,             1, ARG_SIZ) // Gets the address from the top of the stack and loads value from that address into the stack [overloaded]
+RAW_CMD  (load_byte,        1, ARG_OVL) // Gets the address from the top of the stack and loads value from that address into the stack [1 byte]
+RAW_CMD  (load_word,        1, ARG_OVL) // Gets the address from the top of the stack and loads value from that address into the stack [2 bytes]
+RAW_CMD  (load_dword,       1, ARG_OVL) // Gets the address from the top of the stack and loads value from that address into the stack [4 bytes]
+RAW_CMD  (store,            1, ARG_SIZ) // Gets the address from the top of the stack, then gets value from the top and stores it into the location with that address [overloaded]
+RAW_CMD  (store_byte,       1, ARG_OVL) // Gets the address from the top of the stack, then gets value from the top and stores it into the location with that address [1 byte]
+RAW_CMD  (store_word,       1, ARG_OVL) // Gets the address from the top of the stack, then gets value from the top and stores it into the location with that address [2 bytes
+RAW_CMD  (store_dword,      1, ARG_OVL) // Gets the address from the top of the stack, then gets value from the top and stores it into the location with that address [4 bytes]
 //^^^^^^^^^^^^^^
 // LABEL commands
 //^^^^^^^^^^^^^^
+// Use cmp first to compare the top two elements and get the result in flags register
 // T = TOP, P = PREVIOUS
 RAW_CMD   (ja,   0, (ARG_POS | ARG_LBL)) //Jump if T >  P
 RAW_CMD   (jae,  0, (ARG_POS | ARG_LBL)) //Jump if T >= P
