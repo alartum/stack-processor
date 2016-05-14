@@ -21,7 +21,7 @@
 #define JMP 109
 
 #define NO_DEBUG_INFO
-#undef NO_DEBUG_INFO
+//#undef NO_DEBUG_INFO
 
 enum PARSING_STATE
 {
@@ -39,12 +39,13 @@ struct label_t
     short counter;
 };
 
-unsigned assemble (const Buffer* source, Buffer* assembled, label_t* labels, bool show_warn);
+unsigned assemble (const Buffer* source, Buffer* assembled, label_t* labels, bool show_warn, bool is_verbose);
 
 int main (int argc, char* argv[])
 {
     // Not using it
     (void)DUMP_INDENT;
+    bool is_verbose = false;
     //^^^^^^^^^^^^^^^^^^^^^^^^^
     //Default part BEGIN
     //^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -52,9 +53,20 @@ int main (int argc, char* argv[])
     char inName[NAME_MAX] = {}, outName[NAME_MAX] = {};
     switch (argc)
     {
-    case 3:
+    case 4:
         strcpy (inName, argv[1]);
         strcpy (outName, argv[2]);
+        if (!strcmp (argv[3], "--verbose"))
+            is_verbose = true;
+        break;
+    case 3:
+        strcpy (inName, argv[1]);
+        if (!strcmp (argv[2], "--verbose")){
+            is_verbose = true;
+            strcpy (outName, "program.bin");
+        }
+        else
+            strcpy (outName, argv[2]);
         break;
     case 2:
         strcpy (inName, argv[1]);
@@ -91,11 +103,11 @@ int main (int argc, char* argv[])
     #ifndef NO_DEBUG_INFO
     printf ("\nFIRST RUN:\n");
     #endif // NO_DEBUG_INFO
-    assemble(&buffer, &assembled, labels, false);
+    assemble(&buffer, &assembled, labels, false, false);
     #ifndef NO_DEBUG_INFO
     printf ("\n\nSECOND RUN:\n");
     #endif // NO_DEBUG_INFO
-    unsigned writing_pos = assemble(&buffer, &assembled, labels, true);
+    unsigned writing_pos = assemble(&buffer, &assembled, labels, true, is_verbose);
     if (!writing_pos)
     {
         printf ("Assemble error\n");
@@ -105,11 +117,12 @@ int main (int argc, char* argv[])
         close_file (out);
         return WRONG_RESULT;
     }
-
-    printf ("Labels:\n");
-    for (unsigned i = 0; labels[i].position != UINT_MAX; i ++){
-        printf ("[%s] = %u;\n", labels[i].name, labels[i].position);
-        free(labels[i].name);
+    if (is_verbose){
+        printf ("Labels:\n");
+        for (unsigned i = 0; labels[i].position != UINT_MAX; i ++){
+            printf ("[%s] = %u;\n", labels[i].name, labels[i].position);
+            free(labels[i].name);
+        }
     }
     //^^^^^^^^^^^^^^^^^^^^^^^^^
     //Parse END
@@ -127,14 +140,14 @@ int main (int argc, char* argv[])
     fwrite (assembled.chars, sizeof (char), writing_pos, out);
     buffer_destruct(&assembled);
     close_file (out);
-    printf("\n#Programm successfully written to %s.\n", outName);
+    printf("#Programm successfully written to %s.\n", outName);
     //^^^^^^^^^^^^^^^^^^^^^^^^^
     //Output END
     //^^^^^^^^^^^^^^^^^^^^^^^^^
     return NO_ERROR;
 }
 
-unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool show_warn)
+unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool show_warn, bool is_verbose)
 {
     Buffer buffer;
     buffer_construct_copy (&buffer, source);
@@ -161,17 +174,13 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
         //Lines marking BEGIN
         //^^^^^^^^^^^^^^^^^^^^^^^^^
 
-        #ifndef NO_DEBUG_INFO
-        printf ("#%u# ", lineN);
-        #endif // NO_DEBUG_INFO
+        if (is_verbose) printf ("#%u# ", lineN);
         lineN++;
 
         while (strchr(" \t", *nextLinePtr))
             nextLinePtr++;
         if (strchr("\r\n", *nextLinePtr)){
-            #ifndef NO_DEBUG_INFO
-            printf ("(skipped)\n");
-            #endif // NO_DEBUG_INFO
+            if (is_verbose) printf ("(skipped)\n");
             nextLinePtr++;
             continue;
         }
@@ -204,7 +213,7 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
         }
         if (!strcmp(word, ".code")){
             #ifndef NO_DEBUG_INFO
-            printf ("Data section ended! Code section starts.\n");
+            if (is_verbose) printf ("Data section ended! Code section starts.\n");
             #endif // NO_DEBUG_INFO
             if (show_warn && in_code) printf ("Multiple .code section (there must be only one!) in line #%u: %s\n", lineN, word);
             in_code = true;
@@ -217,7 +226,7 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
         else
             state = CMD;
 
-        for (;word != NULL; word = strtok (NULL, " ")){
+        for (;word != NULL; word = (word)? strtok (NULL, " ") : word){
             switch (state){
             case DATA:
                 //printf ("Data check: [%s]\n", word);
@@ -246,9 +255,7 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                             labels[i].name = strdup (word);
                             labels[i].counter ++;
                             labels[i].position = writing_pos;
-                            #ifndef NO_DEBUG_INFO
-                            printf (" ::%s:: (%u)", word, writing_pos);
-                            #endif // NO_DEBUG_INFO
+                            if (is_verbose) printf (" ::%s:: (%u)", word, writing_pos);
                         }
                         state = DATA;
                     }
@@ -260,7 +267,7 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                     //printf ("Checking [" #_name "]\n");
                     #define VAR(_name,_size) \
                     if ((state == DATA) && (!strcmp (word, #_name))){\
-                        printf ("%s ", #_name); \
+                        if (is_verbose) printf ("%s ", #_name); \
                         offset = _size;\
                         state = ARG;\
                     }
@@ -281,13 +288,16 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                                 assembled->chars[writing_pos] = (char)cmd_err;\
                                 return 0;\
                             }\
-                            printf ("[" #_type "]" _spec, _type##_num);\
+                            if (is_verbose) printf ("[" #_type "]" _spec, _type##_num);\
                             *(_type*)(assembled->chars+writing_pos) = _type##_num;\
                             word = strtok (NULL, " ");\
                             state = DONE;\
                         }
+                        //printf ("word=[%s]\n", word);
+                        if (strchr(word, '.')){
+                            READ_CONST(float, "%f")
+                        }
                         READ_CONST(int, "%d")
-                        READ_CONST(float, "%f")
                         READ_CONST(char, "'%c'")
                         #undef READ_CONST
                         writing_pos += offset;
@@ -302,9 +312,7 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                 break;
             case DONE:
                 if (sscanf(word, ";%*s")){
-                    #ifndef NO_DEBUG_INFO
-                    printf (" $comment$ ");
-                    #endif // NO_DEBUG_INFO
+                    if (is_verbose) printf (" $comment$ ");
                     state = DONE;
                     word = NULL;
                     continue;
@@ -316,17 +324,13 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                 break;
             case CMD:
                 if (state != DONE && sscanf(word, ";%*s")){
-                    #ifndef NO_DEBUG_INFO
-                    printf (" $comment$ ");
-                    #endif // NO_DEBUG_INFO
+                    if (is_verbose) printf (" $comment$ ");
                     state = DONE;
                     word = NULL;
                     continue;
                 }
                 if ((state != DONE) && (!strcmp (word, "stop"))){
-                    #ifndef NO_DEBUG_INFO
-                    printf ("stop\n");
-                    #endif // NO_DEBUG_INFO
+                    if (is_verbose) printf ("stop\n");
                     assembled->chars[writing_pos] = (char)cmd_stop;
                     writing_pos ++;
                     assembled->chars[writing_pos] = 0;
@@ -343,7 +347,7 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                 {\
                     if ((state == CMD) && (!strcmp (word, #name)))\
                     {\
-                        printf ("%s ", #name);\
+                        if (is_verbose) printf ("%s ", #name);\
                         assembled->chars[writing_pos] = (char)key;\
                         writing_pos ++;\
                         if (arguments & ARG_NO)\
@@ -382,9 +386,7 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                         labels[i].name = strdup (word);
                         labels[i].counter ++;
                         labels[i].position = writing_pos;
-                        #ifndef NO_DEBUG_INFO
-                        printf (" ::%s:: (%u)", word, writing_pos);
-                        #endif // NO_DEBUG_INFO
+                        if (is_verbose) printf (" ::%s:: (%u)", word, writing_pos);
                     }
                     state = DONE;
                 }
@@ -415,14 +417,16 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                     #define READ_CONST(_type, _spec, _offset) \
                     _type _type##_num = 0;\
                     if (state != DONE && sscanf (word, _spec, &(_type##_num))){\
-                        printf ("[" #_type "]" _spec, _type##_num);\
+                        if (is_verbose) printf ("[" #_type "]" _spec, _type##_num);\
                         *(_type*)(assembled->chars+writing_pos) = _type##_num;\
                         assembled->chars[writing_pos - 1] += _offset;\
                         writing_pos += sizeof(_type);\
                         state = DONE;\
                     }
+                    if (strchr(word, '.')){
+                        READ_CONST(float, "%f", 8)
+                    }
                     READ_CONST(int, "%d", 7)
-                    READ_CONST(float, "%f", 8)
                     READ_CONST(char, "'%c'", 9)
                     #undef READ_CONST
                 }
@@ -435,7 +439,7 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                     if ((state != DONE) && (!strcmp (word, #name)))\
                     {\
                         /* Changing command identifier to reg*/\
-                        /*printf ("[%s]|%d|", word, address);*/\
+                        if (is_verbose) printf ("[%s]|%d|", word, address);\
                         assembled->chars[writing_pos - 1] += offset ;\
                         assembled->chars[writing_pos] = (char)address;\
                         writing_pos ++;\
@@ -568,9 +572,7 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
         //^^^^^^^^^^^^^^^^^^^^^^^^^
         //Words parsing END
         //^^^^^^^^^^^^^^^^^^^^^^^^^
-        #ifndef NO_DEBUG_INFO
-        printf ("\n");
-        #endif // NO_DEBUG_INFO
+        if (is_verbose) printf ("\n");
     }
     buffer_destruct(&buffer);
     return labels_success && writing_pos;
