@@ -13,17 +13,22 @@
 #include "stack.h"
 #include "CPU.h"
 
-
-
 int main (int argc, char* argv[])
 {
     CHECK_DEFAULT_ARGS();
     char prog_name[NAME_MAX] = {};
+    bool is_debug = false;
     switch (argc)
     {
     case 2:
         strcpy (prog_name, argv[1]);
         break;
+    case 3:
+        strcpy (prog_name, argv[1]);
+        if (!strcmp ("--debug", argv[2])){
+            is_debug = true;
+            break;
+        }
     default:
         WRITE_WRONG_USE();
     }
@@ -46,16 +51,19 @@ int main (int argc, char* argv[])
     buffer_construct (&program, prog_name);
     cpu_t cpu;
     cpu_t_construct(&cpu);
-    cpu_t_load_program(&cpu, &program);
-    if (!cpu_t_run(&cpu))
-    {
-        cpu_t_destruct(&cpu);
-        COMMENT ("Runtime error occured!");
-
-        return WRONG_RESULT;
+    if (!cpu_t_load_program(&cpu, &program)){
+        COMMENT("Loading problem!");
+        goto ERROR;
     }
+    if (!cpu_t_run(&cpu, is_debug)){
+        COMMENT ("Runtime error occured!");
+        goto ERROR;
+    }
+
+    return NO_ERROR;
+ERROR:
     cpu_t_destruct (&cpu);
     buffer_destruct (&program);
 
-    return NO_ERROR;
+    return WRONG_RESULT;
 }
