@@ -1,6 +1,6 @@
 #ifndef REG_ADDRESS_INCLUDED
 #define REG_ADDRESS_INCLUDED
-// Right way to define: ADD_INFO(name, address, size, cmd_offset)
+// Right way to define: ADDRESS(name, address, size, cmd_offset)
 // Current register size is 4 bytes = 32 bits.
 // So, it's the example of x32 architecture stack processor.
 #define REG_SIZE 4

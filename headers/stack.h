@@ -177,14 +177,14 @@ void stack_t_destruct_no_alloc (stack_t* This)
 bool stack_t_OK (const stack_t* This)
 {
     assert (This);
-    return This->data && This->is_valid && (!This->top || (This->top == (This->data + This->size)));
+    return This->data && This->is_valid;
 }
 
 void stack_t_dump_ (const stack_t* This, const char name[])
 {
     DUMP_INDENT += INDENT_VALUE;
     assert (This);
-    printf ("%s = " ANSI_COLOR_BLUE "stack_t" ANSI_COLOR_RESET " (", name);
+    printf ("%*s%s = " ANSI_COLOR_BLUE "stack_t" ANSI_COLOR_RESET " (", DUMP_INDENT, "", name);
     if (stack_t_OK(This))
         printf (ANSI_COLOR_GREEN "ok" ANSI_COLOR_RESET ")\n");
     else
@@ -197,8 +197,8 @@ void stack_t_dump_ (const stack_t* This, const char name[])
     DUMP_INDENT += INDENT_VALUE;
     if (This->top != NULL)
     {
-        size_t i = This->size - 1;
-        for (; (This->data + i)!= This->top && i < MAX_PRINTED; i --)
+        size_t i = This->max_size - 1;
+        for (; (This->data + i)!= This->top && i >= This->max_size - MAX_PRINTED; i --)
             printf ("%*s" ANSI_COLOR_MAGENTA ">[%3lu]" ANSI_COLOR_RESET " %02X\n", DUMP_INDENT-1, "", i, (unsigned int)(This->data[i] & 0xFF));
         // Printing top
         printf ("%*s" ANSI_COLOR_CYAN ">>[%3lu]" ANSI_COLOR_RESET " %02X\n", DUMP_INDENT-2, "", i, (unsigned int)(This->data[i] & 0xFF));
@@ -238,8 +238,8 @@ bool stack_t_pop (stack_t* This, void* dest, size_t nbytes)
     ASSERT_OK(stack_t, This);
 
     if (This->size >= nbytes){
+        memcpy(dest, This->top + 1, nbytes);
         This->size -= nbytes;
-        memcpy(dest, This->top, nbytes);
         This->top += nbytes;
         return true;
     }
