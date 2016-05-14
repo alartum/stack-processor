@@ -17,6 +17,9 @@
 #include "commands.h"
 #undef DEFINES_ONLY
 
+// Jump address
+#define JMP 109
+
 #define NO_DEBUG_INFO
 #undef NO_DEBUG_INFO
 
@@ -148,7 +151,10 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
     //Reading state
     char state = DONE;
     bool labels_success = true;
-    bool in_data = false, end_data = false;
+    unsigned entry_point = 0;
+    bool in_data = false, end_data = false, in_code = false;
+    // Reserve space for enter point
+    writing_pos += sizeof(unsigned) + 1;
     while (nextLinePtr != NULL && state == DONE)
     {
         //^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -200,7 +206,10 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
             #ifndef NO_DEBUG_INFO
             printf ("Data section ended! Code section starts.\n");
             #endif // NO_DEBUG_INFO
+            if (show_warn && in_code) printf ("Multiple .code section (there must be only one!) in line #%u: %s\n", lineN, word);
+            in_code = true;
             end_data = true;
+            entry_point = writing_pos;
             continue;
         }
         if (in_data && !end_data)
@@ -322,6 +331,10 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                     writing_pos ++;
                     assembled->chars[writing_pos] = 0;
                     buffer_destruct(&buffer);
+                    // Writing entry info
+                    if (!in_code && show_warn) printf ("Can't find entry point (.code section)!\n");
+                    assembled->chars[0] = JMP;
+                    *(unsigned*)(assembled->chars + 1) = entry_point;
 
                     return writing_pos;
                 }
@@ -449,7 +462,7 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                     CHECK_SIZE(dword, 3)
                     #undef CHECK_SIZE
                     if (size_done != true){
-                        if (show_warn) printf ("\nCan't find size specifier in line #%u: %s\n", lineN, word);
+                        if (show_warn) printf ("\nCan't find size specifier [byte, word, dword] in line #%u: %s\n", lineN, word);
                         buffer_destruct(&buffer);
                         assembled->chars[writing_pos] = (char)cmd_err;
                         return 0;
