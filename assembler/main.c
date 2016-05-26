@@ -8,6 +8,7 @@
 
 #include <stdio.h>
 #include "mylib.h"
+#include "buffer_t.h"
 #include "commands_enum.h"
 #include <string.h>
 #include <limits.h>
@@ -17,8 +18,8 @@
 #include "commands.h"
 #undef DEFINES_ONLY
 
-// Jump address
-#define JMP 109
+// For jump address
+#include "commands_enum.h"
 
 #define NO_DEBUG_INFO
 //#undef NO_DEBUG_INFO
@@ -39,7 +40,7 @@ struct label_t
     short counter;
 };
 
-unsigned assemble (const Buffer* source, Buffer* assembled, label_t* labels, bool show_warn, bool is_verbose);
+unsigned assemble (const buffer_t* source, buffer_t* assembled, label_t* labels, bool show_warn, bool is_verbose);
 
 int main (int argc, char* argv[])
 {
@@ -78,21 +79,21 @@ int main (int argc, char* argv[])
 
     //^^^^^^^^^^^^^^^^^^^^^^^^^
     //Default part END
-    //Buffer BEGIN
+    //buffer_t BEGIN
     //^^^^^^^^^^^^^^^^^^^^^^^^^
-    Buffer buffer;
-    if (!buffer_construct (&buffer, inName))
+    buffer_t buffer;
+    if (!buffer_t_construct_filename (&buffer, inName))
     {
         perror ("#Input error");
         return WRONG_RESULT;
     }
-    Buffer assembled;
-    buffer_construct_empty (&assembled, buffer.length);
+    buffer_t assembled;
+    buffer_t_construct (&assembled, buffer.size, false);
 
 
     int charcount = 1; // 1 because we need a stop label, so we need one more of them
-    for(int m=0; buffer.chars[m]; m++)
-        if(buffer.chars[m] == ':')
+    for(int m=0; buffer.data[m]; m++)
+        if(buffer.data[m] == ':')
             charcount ++;
     label_t* labels = (label_t*) calloc (charcount, sizeof (*labels));
     for (int i = 0; i < charcount; i ++){
@@ -112,8 +113,8 @@ int main (int argc, char* argv[])
     {
         printf ("Assemble error\n");
         open_file (out, outName, "wb", "#Output error");
-        fwrite (assembled.chars, sizeof (char), assembled.length, out);
-        buffer_destruct(&assembled);
+        fwrite (assembled.data, sizeof (char), assembled.size, out);
+        buffer_t_destruct(&assembled);
         close_file (out);
         return WRONG_RESULT;
     }
@@ -129,16 +130,16 @@ int main (int argc, char* argv[])
     //Output BEGIN
     //^^^^^^^^^^^^^^^^^^^^^^^^^
     free (labels);
-    buffer_destruct(&buffer);
+    buffer_t_destruct(&buffer);
     //printf ("AMOUNT: %u\n", writing_pos);
     /*for (unsigned i = 0; i < writing_pos; i++)
     {
-        printf ("%d ", assembled.chars[i]);
+        printf ("%d ", assembled.data[i]);
     }*/
 
     open_file (out, outName, "wb", "#Output error");
-    fwrite (assembled.chars, sizeof (char), writing_pos, out);
-    buffer_destruct(&assembled);
+    fwrite (assembled.data, sizeof (char), writing_pos, out);
+    buffer_t_destruct(&assembled);
     close_file (out);
     printf("#Programm successfully written to %s.\n", outName);
     //^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -147,17 +148,17 @@ int main (int argc, char* argv[])
     return NO_ERROR;
 }
 
-unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool show_warn, bool is_verbose)
+unsigned assemble(const buffer_t* source, buffer_t* assembled, label_t* labels, bool show_warn, bool is_verbose)
 {
-    Buffer buffer;
-    buffer_construct_copy (&buffer, source);
+    buffer_t buffer;
+    buffer_t_construct_copy (&buffer, source);
 
-    char* nextLinePtr = buffer.chars;
+    char* nextLinePtr = buffer.data;
     // Current line number and writing byte
     unsigned lineN = 0, writing_pos = 0;
 
     //^^^^^^^^^^^^^^^^^^^^^^^^^
-    //Buffer END
+    //buffer_t END
     //Parse BEGIN
     //^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -246,7 +247,7 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                                 }
                                 else{
                                     if (show_warn) printf ("Multiple label definition in line #%u: %s\n", lineN, word);
-                                    buffer_destruct(&buffer);
+                                    buffer_t_destruct(&buffer);
                                     return 0;
                                 }
                             }
@@ -284,12 +285,12 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                         if (state == ARG && sscanf (word, _spec, &(_type##_num))){\
                             if (offset < sizeof(_type) && show_warn){\
                                 printf ("\nWrong size (%u bytes reserved, but " #_type " takes %lu bytes) in line #%u: %s\n", offset, sizeof(_type), lineN, word);\
-                                buffer_destruct(&buffer);\
-                                assembled->chars[writing_pos] = (char)cmd_err;\
+                                buffer_t_destruct(&buffer);\
+                                assembled->data[writing_pos] = (char)cmd_err;\
                                 return 0;\
                             }\
                             if (is_verbose) printf ("[" #_type "]" _spec, _type##_num);\
-                            *(_type*)(assembled->chars+writing_pos) = _type##_num;\
+                            *(_type*)(assembled->data+writing_pos) = _type##_num;\
                             word = strtok (NULL, " ");\
                             state = DONE;\
                         }
@@ -305,8 +306,8 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                 }
                 if (state == DATA || state == ARG){
                     if (show_warn) printf ("\nUnknown command in line #%u: %s\n", lineN, word);
-                    buffer_destruct(&buffer);
-                    assembled->chars[writing_pos] = (char)cmd_err;
+                    buffer_t_destruct(&buffer);
+                    assembled->data[writing_pos] = (char)cmd_err;
                     return 0;
                 }
                 break;
@@ -331,14 +332,14 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                 }
                 if ((state != DONE) && (!strcmp (word, "stop"))){
                     if (is_verbose) printf ("stop\n");
-                    assembled->chars[writing_pos] = (char)cmd_stop;
+                    assembled->data[writing_pos] = (char)cmd_stop;
                     writing_pos ++;
-                    assembled->chars[writing_pos] = 0;
-                    buffer_destruct(&buffer);
+                    assembled->data[writing_pos] = 0;
+                    buffer_t_destruct(&buffer);
                     // Writing entry info
                     if (!in_code && show_warn) printf ("Can't find entry point (.code section)!\n");
-                    assembled->chars[0] = JMP;
-                    *(unsigned*)(assembled->chars + 1) = entry_point;
+                    assembled->data[0] = cmd_jmp;
+                    *(unsigned*)(assembled->data + 1) = entry_point;
 
                     return writing_pos;
                 }
@@ -348,7 +349,7 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                     if ((state == CMD) && (!strcmp (word, #name)))\
                     {\
                         if (is_verbose) printf ("%s ", #name);\
-                        assembled->chars[writing_pos] = (char)key;\
+                        assembled->data[writing_pos] = (char)key;\
                         writing_pos ++;\
                         if (arguments & ARG_NO)\
                         {\
@@ -377,7 +378,7 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                             }
                             else{
                                 if (show_warn) printf ("Multiple label definition in line #%u: %s\n", lineN, word);
-                                buffer_destruct(&buffer);
+                                buffer_t_destruct(&buffer);
                                 return 0;
                             }
                         }
@@ -392,8 +393,8 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                 }
                 if (state == CMD){
                     if (show_warn) printf ("\nUnknown command in line #%u: %s\n", lineN, word);
-                    buffer_destruct(&buffer);
-                    assembled->chars[writing_pos] = (char)cmd_err;
+                    buffer_t_destruct(&buffer);
+                    assembled->data[writing_pos] = (char)cmd_err;
                     return 0;
                 }
                 break;
@@ -408,8 +409,8 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                             //printf ("[%s]{%d}", word, labels[i].position);
                             // If the command is pop
                             if (!(arg_type^ARG_SIZ))
-                                assembled->chars[writing_pos - 1] += 7;
-                            *(unsigned*)(assembled->chars+writing_pos) = labels[i].position;
+                                assembled->data[writing_pos - 1] += 7;
+                            *(unsigned*)(assembled->data+writing_pos) = labels[i].position;
                             writing_pos += sizeof(unsigned);
                             state = DONE;
                         }
@@ -418,8 +419,8 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                     _type _type##_num = 0;\
                     if (state != DONE && sscanf (word, _spec, &(_type##_num))){\
                         if (is_verbose) printf ("[" #_type "]" _spec, _type##_num);\
-                        *(_type*)(assembled->chars+writing_pos) = _type##_num;\
-                        assembled->chars[writing_pos - 1] += _offset;\
+                        *(_type*)(assembled->data+writing_pos) = _type##_num;\
+                        assembled->data[writing_pos - 1] += _offset;\
                         writing_pos += sizeof(_type);\
                         state = DONE;\
                     }
@@ -440,8 +441,8 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                     {\
                         /* Changing command identifier to reg*/\
                         if (is_verbose) printf ("[%s]|%d|", word, address);\
-                        assembled->chars[writing_pos - 1] += offset ;\
-                        assembled->chars[writing_pos] = (char)address;\
+                        assembled->data[writing_pos - 1] += offset ;\
+                        assembled->data[writing_pos] = (char)address;\
                         writing_pos ++;\
                         state = DONE;\
                     }
@@ -456,7 +457,7 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                     //printf ("Size check: [%s]\n", word);
                     #define CHECK_SIZE(_name, _offset)\
                     if (!size_done && !strcmp(word, #_name)){\
-                        assembled->chars[writing_pos - 1] += _offset;\
+                        assembled->data[writing_pos - 1] += _offset;\
                         size_done = true;\
                     }
                     // Changing command identifier to the momory's one
@@ -467,8 +468,8 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                     #undef CHECK_SIZE
                     if (size_done != true){
                         if (show_warn) printf ("\nCan't find size specifier [byte, word, dword] in line #%u: %s\n", lineN, word);
-                        buffer_destruct(&buffer);
-                        assembled->chars[writing_pos] = (char)cmd_err;
+                        buffer_t_destruct(&buffer);
+                        assembled->data[writing_pos] = (char)cmd_err;
                         return 0;
                     }
                     if (!(arg_type^ARG_SIZ))
@@ -484,7 +485,7 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                     unsigned pos = 0;
                     if (sscanf (word, "%u", &pos)){
                         //printf ("{%d}", pos);
-                        *(unsigned*)(assembled->chars+writing_pos) = pos;
+                        *(unsigned*)(assembled->data+writing_pos) = pos;
                         writing_pos += sizeof(unsigned);
                         state = DONE;
                     }
@@ -509,25 +510,25 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                             for (unsigned i = 0; labels[i].position != UINT_MAX && state != DONE; i++){
                                 if (!strcmp (labels[i].name, word)){
                                     //printf ("[%s]{%d}", word, labels[i].position);
-                                    *(unsigned*)(assembled->chars+writing_pos) = labels[i].position;
+                                    *(unsigned*)(assembled->data+writing_pos) = labels[i].position;
                                     writing_pos += sizeof(unsigned);
                                     state = DONE;
                                 }
                             }
                             if (state != DONE && sscanf (word, "%u", &mem)){
                                 //printf ("[%u]", mem);
-                                *(unsigned*)(assembled->chars + writing_pos) = mem;
+                                *(unsigned*)(assembled->data + writing_pos) = mem;
                                 writing_pos += sizeof(unsigned);
                                 state = DONE;
                             }
                             if (state != DONE){
                                 if (show_warn) {
                                     printf ("\nWrong address (format problem?) in line #%u: %s\n", lineN, word);
-                                    buffer_destruct(&buffer);
-                                    assembled->chars[writing_pos] = (char)cmd_err;
+                                    buffer_t_destruct(&buffer);
+                                    assembled->data[writing_pos] = (char)cmd_err;
                                     return 0;
                                 }
-                                *(unsigned*)(assembled->chars+writing_pos) = UINT_MAX;
+                                *(unsigned*)(assembled->data+writing_pos) = UINT_MAX;
                                 writing_pos += sizeof(unsigned);
                                 labels_success = false;
                                 state = DONE;// Just to be sure
@@ -544,15 +545,15 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                             //printf ("[%s]{%d}", word, labels[i].position);
                             // If the command is pop
                             if (!(arg_type^ARG_SIZ))
-                                assembled->chars[writing_pos - 1] += 7;
-                            *(unsigned*)(assembled->chars+writing_pos) = labels[i].position;
+                                assembled->data[writing_pos - 1] += 7;
+                            *(unsigned*)(assembled->data+writing_pos) = labels[i].position;
                             writing_pos += sizeof(unsigned);
                             state = DONE;
                         }
                     }
                     if (state != DONE)
                     {
-                        *(int*)(assembled->chars+writing_pos) = -1;
+                        *(int*)(assembled->data+writing_pos) = -1;
                         writing_pos += sizeof(int);
                     }
                     labels_success = false;
@@ -561,8 +562,8 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
                 if (state != DONE)
                 {
                     printf ("\nUnknown command in line #%u: %s\n", lineN, word);
-                    buffer_destruct(&buffer);
-                    assembled->chars[writing_pos] = (char)cmd_err;
+                    buffer_t_destruct(&buffer);
+                    assembled->data[writing_pos] = (char)cmd_err;
                     return 0;
                 }
                 break;
@@ -574,6 +575,6 @@ unsigned assemble(const Buffer* source, Buffer* assembled, label_t* labels, bool
         //^^^^^^^^^^^^^^^^^^^^^^^^^
         if (is_verbose) printf ("\n");
     }
-    buffer_destruct(&buffer);
+    buffer_t_destruct(&buffer);
     return labels_success && writing_pos;
 }

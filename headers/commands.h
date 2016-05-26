@@ -21,6 +21,7 @@
 //memory size: db, w, dw
 #define ARG_SIZ 0x80
 
+
 #endif // COMMANDS_H_INCLUDED
 //! FLAG TO INT AND FLOAT OPERATIONS
 /// Codes of CPU instructions
@@ -32,23 +33,21 @@
 // NO ARGUMENTS
 //^^^^^^^^^^^^^^^^^^^^^^^^
 #define RAW_CMD(name, shift_to_the_right, arguments_type)  CMD(name, __LINE__, shift_to_the_right, arguments_type)
+RAW_CMD (debug, 1, ARG_NO) //Starts the debug mode
+RAW_CMD (ndebug,1, ARG_NO) //Stops the debug mode
 RAW_CMD (stop, 0, ARG_NO) //End of the program
 RAW_CMD (err, 0, ARG_NO) //Error indicator
 RAW_CMD (out, 1, ARG_NO) //Standard output
 RAW_CMD (fout, 1, ARG_NO) //Standard output
 RAW_CMD (cout, 1, ARG_NO) //Standard output
-RAW_CMD (cadd, 1, ARG_NO) //Character [1 byte] addition
-RAW_CMD (csub, 1, ARG_NO) //Character [1 byte] subtraction
 RAW_CMD (add, 1, ARG_NO) //Integer addition
 RAW_CMD (sub, 1, ARG_NO) //Integer subtraction
 RAW_CMD (mul, 1, ARG_NO) //Integer multiplication
 RAW_CMD (div, 1, ARG_NO) //Integer division [rounds down]
-RAW_CMD (pow, 1, ARG_NO) //Integer power [rises integer in integer degree]
 RAW_CMD (fadd, 1, ARG_NO) //Float addition
 RAW_CMD (fsub, 1, ARG_NO) //Float subtraction
 RAW_CMD (fmul, 1, ARG_NO) //Float multiplication
 RAW_CMD (fdiv, 1, ARG_NO) //Float division [rounds down]
-RAW_CMD (fpow, 1, ARG_NO) //Float power [rises integer in integer degree]
 RAW_CMD (ret, 0, ARG_NO) //Returns from the function by popping it's address from the function stack
 RAW_CMD (bytedup, 1, ARG_NO) //Duplicates the top byte of stack
 RAW_CMD (worddup, 1, ARG_NO) //Duplicates (doubles) top 2 bytes
@@ -87,14 +86,6 @@ RAW_CMD  (pop_mem_dword,  0, ARG_OVL) // Poppes value from the stack to the give
 RAW_CMD  (pop_reg_byte,    0, ARG_OVL) // Poppes value from the stack to the given register [1 byte]
 RAW_CMD  (pop_reg_word,    0, ARG_OVL) // Poppes value from the stack to the given register [2 byte]
 RAW_CMD  (pop_reg_dword,    0, ARG_OVL) // Poppes value from the stack to the given register [4 byte]
-RAW_CMD  (load,             1, ARG_SIZ) // Gets the address from the top of the stack and loads value from that address into the stack [overloaded]
-RAW_CMD  (load_byte,        1, ARG_OVL) // Gets the address from the top of the stack and loads value from that address into the stack [1 byte]
-RAW_CMD  (load_word,        1, ARG_OVL) // Gets the address from the top of the stack and loads value from that address into the stack [2 bytes]
-RAW_CMD  (load_dword,       1, ARG_OVL) // Gets the address from the top of the stack and loads value from that address into the stack [4 bytes]
-RAW_CMD  (store,            1, ARG_SIZ) // Gets the address from the top of the stack, then gets value from the top and stores it into the location with that address [overloaded]
-RAW_CMD  (store_byte,       1, ARG_OVL) // Gets the address from the top of the stack, then gets value from the top and stores it into the location with that address [1 byte]
-RAW_CMD  (store_word,       1, ARG_OVL) // Gets the address from the top of the stack, then gets value from the top and stores it into the location with that address [2 bytes
-RAW_CMD  (store_dword,      1, ARG_OVL) // Gets the address from the top of the stack, then gets value from the top and stores it into the location with that address [4 bytes]
 //^^^^^^^^^^^^^^
 // LABEL commands
 //^^^^^^^^^^^^^^
@@ -108,10 +99,4 @@ RAW_CMD   (je,   0, (ARG_POS | ARG_LBL)) //Jump if T == P
 RAW_CMD   (jne,  0, (ARG_POS | ARG_LBL)) //Jump if T != P
 RAW_CMD   (jmp,  0, (ARG_POS | ARG_LBL)) //Jump [no condition]
 RAW_CMD   (call, 0, ARG_LBL            ) //Push the function address to the stack and then  call it
-RAW_CMD   (ca,   0, ARG_LBL            ) //Call if T >  P
-RAW_CMD   (cae,  0, ARG_LBL            ) //Call if T >= P
-RAW_CMD   (cb,   0, ARG_LBL            ) //Call if T <  P
-RAW_CMD   (cbe,  0, ARG_LBL            ) //Call if T <= P
-RAW_CMD   (ce,   0, ARG_LBL            ) //Call if T == P
-RAW_CMD   (cne,  0, ARG_LBL            ) //Call if T != P
 #endif

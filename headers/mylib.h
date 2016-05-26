@@ -1,21 +1,26 @@
 /** @file */
 
-#ifndef MYLIB_H_INCLUDED
-#define MYLIB_H_INCLUDED
-
 #include <stdio.h>
-#include <math.h>
-#include <float.h>
-#include <string.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <assert.h>
-#include "buffer.h"
 #include <stdbool.h>
 
-/// Indent of dump for pretty output
+#ifndef MYLIB_H_INCLUDED
+#define MYLIB_H_INCLUDED
+
 static int DUMP_INDENT = 0;
-#define INDENT_VALUE 4
+const int INDENT_VALUE = 4;
+
+#define ANSI_COLOR_RED     "\x1b[31m"
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_YELLOW  "\x1b[33m"
+#define ANSI_COLOR_BLUE    "\x1b[34m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
+#define ANSI_COLOR_CYAN    "\x1b[36m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
+/// Indent of dump for pretty output
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 enum MAIN_ERRORS
@@ -26,16 +31,10 @@ enum MAIN_ERRORS
     WRONG_USE
 };
 
-#define ANSI_COLOR_RED     "\x1b[31m"
-#define ANSI_COLOR_GREEN   "\x1b[32m"
-#define ANSI_COLOR_YELLOW  "\x1b[33m"
-#define ANSI_COLOR_BLUE    "\x1b[34m"
-#define ANSI_COLOR_MAGENTA "\x1b[35m"
-#define ANSI_COLOR_CYAN    "\x1b[36m"
-#define ANSI_COLOR_RESET   "\x1b[0m"
-
-
-#define BOOM() printf("BOOM!\n\tFunction: %s\n\tFile: %s\n\tLine: %d\n\n", __FUNCTION__, __FILE__, __LINE__)
+#define BOOM() printf(ANSI_COLOR_RED "BOOM!"ANSI_COLOR_RESET"\n\t"ANSI_COLOR_RED \
+                    "Function:"ANSI_COLOR_RESET" %s\n\t"ANSI_COLOR_RED \
+                    "File:"ANSI_COLOR_RESET" %s\n\t"ANSI_COLOR_RED \
+                    "Line:"ANSI_COLOR_RESET" %d\n\n", __FUNCTION__, __FILE__, __LINE__)
 #define BADABOOM(code) printf("BADABOOM " code "\n")
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #define open_file(file, name, mode, error_message) \
@@ -68,16 +67,19 @@ enum MAIN_ERRORS
 #endif
 int print_help ()
 {
-    Buffer help_file;
-    help_file.chars = 0;
-    if (!buffer_construct (&help_file, "help.txt"))
-    {
-        perror ("#Something is wrong with the help file");
-        return WRONG_USE;
-    }
     INFO();
-    printf ("%s", help_file.chars);
-    buffer_destruct (&help_file);
+    FILE *f;
+    f = fopen("help", "r");
+    if (!f){
+        perror ("print_help: (can't open file)");
+        return WRONG_RESULT;
+    }
+    char c = fgetc(f);
+    while (c != EOF){
+        printf ("%c", c);
+        c = fgetc(f);
+    }
+    fclose(f);
     return NO_ERROR;
 }
 
@@ -104,7 +106,7 @@ int print_help ()
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-/// Puts a comment in needed way
+/// Puts a comment in pretty way
 #define COMMENT(x) ( printf ("#" x "\n") )
 /// Useful check for number is it 0
 #define IS_ZERO(x) ( fabs (x) < DBL_EPSILON )

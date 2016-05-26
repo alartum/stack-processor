@@ -10,25 +10,26 @@
 #include "mylib.h"
 #include <string.h>
 #include <limits.h>
-#include "stack.h"
-#include "CPU.h"
+#include "stack_t.h"
+#include "cpu_t.h"
+#include <time.h>
 
 int main (int argc, char* argv[])
 {
     CHECK_DEFAULT_ARGS();
     char prog_name[NAME_MAX] = {};
-    bool is_debug = false;
+    //bool is_debug = false;
     switch (argc)
     {
     case 2:
         strcpy (prog_name, argv[1]);
         break;
-    case 3:
+    /*case 3:
         strcpy (prog_name, argv[1]);
         if (!strcmp ("--debug", argv[2])){
             is_debug = true;
             break;
-        }
+        }//*/
     default:
         WRITE_WRONG_USE();
     }
@@ -47,23 +48,28 @@ int main (int argc, char* argv[])
     stack_t_destruct(&stack);
     */
 
-    Buffer program;
-    buffer_construct (&program, prog_name);
+    buffer_t program;
+    buffer_t_construct_filename (&program, prog_name);
     cpu_t cpu;
     cpu_t_construct(&cpu);
     if (!cpu_t_load_program(&cpu, &program)){
         COMMENT("Loading problem!");
         goto ERROR;
     }
-    if (!cpu_t_run(&cpu, is_debug)){
+    clock_t begin, end;
+    begin = clock();
+    if (!cpu_t_run(&cpu)){
         COMMENT ("Runtime error occured!");
         goto ERROR;
     }
+    end = clock();
+    double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    printf ("Emulated: %lfms\n", time_spent*1000);
 
     return NO_ERROR;
 ERROR:
     cpu_t_destruct (&cpu);
-    buffer_destruct (&program);
+    buffer_t_destruct (&program);
 
     return WRONG_RESULT;
 }

@@ -1,12 +1,13 @@
 /** @file */
-#ifndef cpu_t_H_INCLUDED
-#define cpu_t_H_INCLUDED
-
 #include <math.h>
 #include <assert.h>
 #include <errno.h>
-#include "stack.h"
+#include "stack_t.h"
 #include <stdint.h>
+#include "buffer_t.h"
+
+#ifndef cpu_t_H_INCLUDED
+#define cpu_t_H_INCLUDED
 
 #define DEFINES_ONLY
 #include "reg_address.h"
@@ -183,11 +184,12 @@ Processor is a structure that containes a stack and a register to operate with.
 */
 struct cpu_t
 {
+    bool is_debug;
+    char flags; /** Flags register is separated from the main purpose registers */
     stack_t stack;/**< Operating stack. */
     char registers[REG_SIZE * REG_NUMBER];/**< Registers of the processor*/
     unsigned position; /** Instruction pointer (current instruction address in memory)  */
     memory_t memory; /** The memory controller interface emulation */
-    char flags; /** Flags register is separated from the main purpose registers */
 
     bool state;/**< State of the cpu_t. true if ON, false if OFF. */
 };
@@ -377,6 +379,7 @@ bool cpu_t_ ## _name (cpu_t* This) \
         return false; \
     } \
     else{ \
+        *(unsigned*)(This->registers+ESP) += 2*sizeof(_type);\
         This->flags &= (0xFF ^ 0x3);\
         if (top < prev){ \
             This->flags |= NEG_FLAG; \
@@ -424,34 +427,6 @@ CON_JUMP (jbe, NEG_FLAG, ZRO_FLAG)
 CON_JUMP (je,  ZRO_FLAG, ZRO_FLAG)
 CON_JUMP (jne, NEG_FLAG, NO_FLAG)
 
-#define CON_CALL(_name, _flags1, _flags2) \
-bool cpu_t_ ## _name (cpu_t* This)\
-{\
-    ASSERT_OK(cpu_t, This);\
-    This->position++;\
-    unsigned new_position = *(unsigned*)(This->memory.storage+ This->position);\
-    assert (new_position < This->memory.max_size); \
-    \
-    /*printf ("CHECK: %f " #operation " %f =>", top, next);*/\
-    This->position += sizeof (int);\
-    if (!((This->flags & 0x3) ^ _flags1) | !((This->flags & 0x3) ^ _flags2)){\
-        if (!stack_t_push (&This->stack, &This->position, sizeof(unsigned)))\
-            return false;\
-        This->position = new_position;\
-        This->registers[ESP] -= sizeof(unsigned);\
-        /*printf ("jmp %d\n", new_position);*/\
-    }\
-    ASSERT_OK(cpu_t, This);\
-    return true;\
-}
-
-CON_CALL (ca,  NO_FLAG,  NO_FLAG)
-CON_CALL (cae, NO_FLAG,  ZRO_FLAG)
-CON_CALL (cb,  NEG_FLAG, NEG_FLAG)
-CON_CALL (cbe, NEG_FLAG, ZRO_FLAG)
-CON_CALL (ce,  ZRO_FLAG, ZRO_FLAG)
-CON_CALL (cne, NEG_FLAG, NO_FLAG)
-
 bool cpu_t_call(cpu_t* This)
 {
     ASSERT_OK(cpu_t, This);
@@ -461,7 +436,7 @@ bool cpu_t_call(cpu_t* This)
     if (!stack_t_push (&This->stack, &This->position, sizeof (unsigned)))
         return false;
     This->position = new_position;
-    This->registers[ESP] -= sizeof(unsigned);
+    *(unsigned*)(This->registers+ESP) -= sizeof(unsigned);
     //printf ("call %d\n", new_position);
     return true;
 }
@@ -479,6 +454,7 @@ bool cpu_t_ret(cpu_t* This)
     unsigned ret_position = 0;
     if (!stack_t_pop (&This->stack, &ret_position, sizeof(unsigned)))
         return false;
+    *(unsigned*)(This->registers+ESP) += sizeof(unsigned);
     This->position = ret_position;
     //printf ("ret %d\n", (int)ret_position);
     return true;
@@ -489,18 +465,6 @@ bool cpu_t_stop(cpu_t* This)
     This->memory.storage[This->position] = 0;
     printf (ANSI_COLOR_RED"*BEEP*"ANSI_COLOR_RESET"[reached the end of the program]\n");
     return true;
-}
-// Overloaded
-bool cpu_t_load(cpu_t* This)
-{
-    (void)This;
-    return false;
-}
-// Overloaded
-bool cpu_t_store(cpu_t* This)
-{
-    (void)This;
-    return false;
 }
 // Overloaded
 bool cpu_t_pop(cpu_t* This)
@@ -521,6 +485,7 @@ bool cpu_t_pop_mem_ ## _name(cpu_t* This)\
         return false;\
     if (!memory_t_write(&This->memory, address, top, _size))\
         return false;\
+    *(unsigned*)(This->registers+ESP) += _size;\
     return true;\
 }
 
@@ -540,6 +505,7 @@ bool cpu_t_push_mem_ ## _name(cpu_t* This) \
         return false;\
     if (!stack_t_push(&This->stack, data, _size))\
         return false;\
+    *(unsigned*)(This->registers+ESP) -= _size;\
     ASSERT_OK(cpu_t, This);\
     return true;\
 }
@@ -548,51 +514,12 @@ bool cpu_t_push_mem_ ## _name(cpu_t* This) \
 #include "var_sizes.h"
 #undef VAR
 
-#define STORE(_name, _size) \
-bool cpu_t_store_ ## _name(cpu_t* This) \
-{\
-    ASSERT_OK(cpu_t, This);\
-    unsigned address = 0;\
-    char data[_size];\
-    if (!stack_t_pop(&This->stack, &address, sizeof(unsigned)))\
-        return false;\
-    if (!stack_t_pop(&This->stack, data, _size))\
-        return false;\
-    if (!memory_t_write(&This->memory, address, data, _size))\
-        return false;\
-    This->registers[ESP] += sizeof(unsigned) + _size;\
-    ASSERT_OK(cpu_t, This);\
-    return true;\
-}
-#define VAR(_name, _nbytes) STORE(_name, _nbytes)
-#include "var_sizes.h"
-#undef VAR
 
-#define LOAD(_name, _size) \
-bool cpu_t_load_ ## _name(cpu_t* This) \
-{\
-    ASSERT_OK(cpu_t, This);\
-    unsigned address = 0;\
-    char data[_size];\
-    if (!stack_t_pop(&This->stack, &address, sizeof(unsigned)))\
-        return false;\
-    if (!memory_t_read(&This->memory, address, data, _size))\
-        return false;\
-    if (!stack_t_push(&This->stack, data, _size))\
-        return false;\
-    This->registers[ESP] += sizeof(unsigned) - _size;\
-    ASSERT_OK(cpu_t, This);\
-    return true;\
-}
-#define VAR(_name, _nbytes) LOAD(_name, _nbytes)
-#include "var_sizes.h"
-#undef VAR
-
-bool cpu_t_load_program (cpu_t* This, const Buffer* program)
+bool cpu_t_load_program (cpu_t* This, const buffer_t* program)
 {
     memory_t_erase(&This->memory);
     COMMENT ("Loading program...");
-    if (!memory_t_write(&This->memory, 0, program->chars, program->length))
+    if (!memory_t_write(&This->memory, 0, program->data, program->size))
         return false;
     This->position = 0;
     COMMENT ("Running...");
@@ -608,13 +535,14 @@ bool cpu_t_construct (cpu_t* This)
     }
     memory_t_reserve(&This->memory, This->memory.max_size);
     This->flags = 0;
+    This->is_debug = false;
     memset (This->registers, 0, REG_SIZE * REG_NUMBER);
     This->position = 0;
     if (!stack_t_construct_no_alloc(&This->stack, This->memory.storage + This->memory.max_size - STACK_SIZE, STACK_SIZE)){
         cpu_t_destruct(This);
         return false;
     }
-    This->registers[ESP] = This->memory.max_size - 1;
+    *(unsigned*)(This->registers+ESP) = This->memory.max_size - 1;\
     This->state = true;
     printf (ANSI_COLOR_RED"*BEEP*"ANSI_COLOR_RESET"[processor was turned ON]\n");
     return true;
@@ -635,6 +563,7 @@ bool cpu_t_construct_copy(cpu_t* This, const cpu_t* other)
         cpu_t_destruct(This);
         return false;
     }
+    This->is_debug = other->is_debug;
     This->flags = other->flags;
     This->state = true;
     printf (ANSI_COLOR_RED"*BEEP*"ANSI_COLOR_RESET"[processor was turned ON]\n");
@@ -647,6 +576,7 @@ void cpu_t_destruct (cpu_t* This)
     This->position = 0;
     memset (This->registers, 0, REG_SIZE * REG_NUMBER);
     This->flags = 0;
+    This->is_debug = false;
     stack_t_destruct_no_alloc(&This->stack);
     memory_t_destruct(&This->memory);
     This->state = false;
@@ -669,6 +599,7 @@ void cpu_t_dump_ (const cpu_t* This, const char name[])
     else
         printf (ANSI_COLOR_RED "ERROR" ANSI_COLOR_RESET ")\n");
     printf(ANSI_COLOR_YELLOW "-----------------------------------------------------" ANSI_COLOR_RESET "\n");
+    printf ("%*sis_debug = %d\n", DUMP_INDENT, "", This->is_debug);
     printf ("%*smemory:\n", DUMP_INDENT, "");
     memory_t_dump(&This->memory);
     printf ("%*sregisters:\n", DUMP_INDENT, "");
@@ -676,18 +607,33 @@ void cpu_t_dump_ (const cpu_t* This, const char name[])
         printf ("%*s[%1u] %d\n", DUMP_INDENT, "", i, This->registers[i*REG_SIZE]);
     printf ("%*sprogram:\n", DUMP_INDENT, "");
     for (char* i = This->memory.storage; i != This->stack.data; i++)
-        printf ("%02X ", (unsigned int)(*i));
+        printf ("%02x ", (unsigned int)(*i));
     printf ("\n%*sstack:\n", DUMP_INDENT, "");
     stack_t_dump(&This->stack);
     printf(ANSI_COLOR_YELLOW "-----------------------------------------------------" ANSI_COLOR_RESET "\n");
     DUMP_INDENT -= INDENT_VALUE;
+}
+bool cpu_t_debug (const cpu_t* This)
+{
+    // Breaking const qualifier to save the logic of the program
+    ASSERT_OK(cpu_t, This);
+    ((cpu_t*)This)->is_debug = true;
+    return true;
+}
+
+bool cpu_t_ndebug (const cpu_t* This)
+{
+    // Breaking const qualifier to save the logic of the program
+    ASSERT_OK(cpu_t, This);
+    ((cpu_t*)This)->is_debug = false;
+    return true;
 }
 
 void cpu_t_show_info (const cpu_t* This)
 {
     DUMP_INDENT += INDENT_VALUE;
     #define ADDRESS(_name, _address, _size, _cmd_offset) \
-    if (_size == 4){\
+    if (_size == 4 && _address != ESP){\
         printf (ANSI_COLOR_YELLOW"%*s[" #_name "] "ANSI_COLOR_RESET, DUMP_INDENT, "");\
         for (unsigned i = 0; i < 4; i ++)\
             printf ("%02X ", (unsigned)(This->registers[_address+i] & 0xFF));\
@@ -695,7 +641,8 @@ void cpu_t_show_info (const cpu_t* This)
     }
     #include "reg_address.h"
     #undef ADDRESS
-    printf (ANSI_COLOR_YELLOW"%*s[eip] "ANSI_COLOR_RESET"%#0X\n", DUMP_INDENT, "", This->position);
+    printf (ANSI_COLOR_YELLOW"%*s[esp] "ANSI_COLOR_RESET"%#0x\n", DUMP_INDENT, "", *(unsigned*)(This->registers+ESP));
+    printf (ANSI_COLOR_YELLOW"%*s[eip] "ANSI_COLOR_RESET"%#0x\n", DUMP_INDENT, "", This->position);
     printf (ANSI_COLOR_YELLOW"%*s[fla]"ANSI_COLOR_RESET" %02X\n", DUMP_INDENT, "", (unsigned)(This->flags & 0xFF));
     printf ("\n%*sstack:\n", DUMP_INDENT, "");
     stack_t_dump(&This->stack);
@@ -720,7 +667,7 @@ bool cpu_t_push_ ## _type (cpu_t* This)\
         cpu_t_destruct(This);\
         return false;\
     }\
-    This->registers[ESP] -= sizeof(_type);\
+    *(unsigned*)(This->registers+ESP) -= sizeof(_type);\
     ASSERT_OK(cpu_t, This);\
     return true;\
 }
@@ -737,7 +684,7 @@ bool cpu_t_ ## _name ## dup (cpu_t* This)\
         cpu_t_destruct(This);\
         return false;\
     }\
-    This->registers[ESP] -= _nbytes;\
+    *(unsigned*)(This->registers+ESP) -= _nbytes;\
     return true;\
 }
 
@@ -753,7 +700,7 @@ bool cpu_t_ ## _name ## dupd (cpu_t* This)\
         cpu_t_destruct(This);\
         return false;\
     }\
-    This->registers[ESP] -= 2*_nbytes;\
+    *(unsigned*)(This->registers+ESP) -= 2*_nbytes;\
     return true;\
 }
 
@@ -774,7 +721,7 @@ bool cpu_t_push_reg_ ## _name (cpu_t* This)\
         cpu_t_destruct(This);\
         return false;\
     }\
-    This->registers[ESP] -= _nbytes;\
+    *(unsigned*)(This->registers+ESP) -= _nbytes;\
     ASSERT_OK(cpu_t, This);\
     return true;\
 }
@@ -796,7 +743,7 @@ bool cpu_t_pop_reg_ ## _name (cpu_t* This)\
         cpu_t_destruct(This);\
         return false;\
     }\
-    This->registers[ESP] += _nbytes;\
+    *(unsigned*)(This->registers+ESP) += _nbytes;\
     ASSERT_OK(cpu_t, This);\
     return true;\
 }
@@ -822,7 +769,7 @@ bool cpu_t_ ## _name (cpu_t* This) \
         return false; \
     } \
     res = a _op b; \
-    This->registers[ESP] += sizeof(_type);\
+    *(unsigned*)(This->registers+ESP) += sizeof(_type);\
     ASSERT_OK(cpu_t, This); \
     return stack_t_push(&This->stack, &res, sizeof(_type)); \
 }
@@ -836,30 +783,6 @@ ARITHM(fadd, +, float)
 ARITHM(fsub, -, float)
 ARITHM(fmul, *, float)
 ARITHM(fdiv, /, float)
-ARITHM(cadd, +, char)
-ARITHM(csub, -, char)
-
-#define POW(_name, _type) \
-bool cpu_t_ ## _name (cpu_t* This)\
-{\
-    ASSERT_OK(cpu_t, This);\
-    _type a = 0, b = 0, a_pow_b = 0;\
-    \
-    if (!stack_t_pop(&This->stack, &a, sizeof(_type)) || !stack_t_pop(&This->stack, &b, sizeof(_type))){\
-        cpu_t_destruct(This);\
-        ASSERT_OK(cpu_t, This);\
-        return false;\
-    }\
-    else{\
-        a_pow_b = (_type)pow((double)a, (double)b);\
-        This->registers[ESP] += sizeof(_type);\
-        ASSERT_OK(cpu_t, This);\
-        return stack_t_push(&This->stack, &a_pow_b, sizeof (_type));\
-    }\
-}
-
-POW(fpow, float)
-POW(pow, int)
 
 #define OUT(_name, _type, _spec) \
 bool cpu_t_ ## _name(cpu_t* This)\
@@ -872,7 +795,7 @@ bool cpu_t_ ## _name(cpu_t* This)\
         return false;\
     }\
     printf (ANSI_COLOR_YELLOW "OUT" ANSI_COLOR_GREEN "[" #_type "]"ANSI_COLOR_YELLOW">" ANSI_COLOR_RESET _spec "\n", top);\
-    This->registers[ESP] += sizeof(_type);\
+    *(unsigned*)(This->registers+ESP) += sizeof(_type);\
     ASSERT_OK(cpu_t, This);\
     return true;\
 }
@@ -918,7 +841,7 @@ bool cpu_t_ ## _name (cpu_t* This)\
         ASSERT_OK(cpu_t, This);\
         return false;\
     }\
-    This->registers[ESP] -= sizeof(_type);\
+    *(unsigned*)(This->registers+ESP) -= sizeof(_type);\
     ASSERT_OK(cpu_t, This);\
     return true;\
 }\
@@ -928,7 +851,7 @@ IN(fin, float, "%f")
 IN(cin, char , "%c")
 // TODO: all functions are written in processor, we are only calling them
 //from define of each CMD_INFO with right argument
-bool cpu_t_run (cpu_t* This, bool is_debug)
+bool cpu_t_run (cpu_t* This)
 {
     if (!This->state){
         printf (ANSI_COLOR_RED "*BEEP-BEEP*"ANSI_COLOR_RESET"[cpu is corrupted]\n");
@@ -937,10 +860,10 @@ bool cpu_t_run (cpu_t* This, bool is_debug)
     while (This->memory.storage[This->position])
     {
         bool is_done = false;
-        if (is_debug) printf("\n[%u] ", This->position);
+        if (This->is_debug) printf("\n[%u] ", This->position);
         #define CMD(name, key, shift, arguments) \
         if (!is_done && This->memory.storage[This->position] == key){\
-            if (is_debug) printf (#name "\n");\
+            if (This->is_debug) printf (#name "\n");\
             if (!cpu_t_ ## name (This))\
                 return false;\
             This->position += shift;\
@@ -948,7 +871,10 @@ bool cpu_t_run (cpu_t* This, bool is_debug)
         }
         #include "commands.h"
         #undef CMD
-        if (is_debug){
+        if (This->is_debug && !is_done){
+            printf ("cpu_t_run: Command is not recognized!\n");
+        }
+        if (This->is_debug){
             cpu_t_show_info (This);
             getchar();
         }

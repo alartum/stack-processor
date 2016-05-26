@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdint.h>
 
-#define LIST_MIN_SIZE 16
+#define LIST_MIN_SIZE 1
 /// More comfortable dump
 #define list_node_t_dump(this) list_node_t_dump_(this, #this)
 /// More comfortable dump
@@ -31,6 +31,7 @@ struct list_t
 {
     size_t size;/**< Amount of elements in the list */
     size_t max_size;/**< Maximum amount of elements can be stored*/
+    char*  image_addr;/**< Address in the image that corresponds to source address*/
 
     list_node_t* storage;/**< Pointer to the local storage*/
 
@@ -44,8 +45,7 @@ struct list_t
 
 struct list_node_t
 {
-    char* word;/**< String that stores word. */
-    size_t amount;/**< Amount of times the word has been inserted */
+    char* data;/**< String that stores word. */
 
     size_t next;/**< Pointer to the next element. */
     size_t prev;/**< Pointer to the previous element. */
@@ -64,7 +64,7 @@ struct list_node_t
 *@param word String with word to be put in the element
 *@return 1 (1) if success, 0 (0) otherwise.
 */
-void list_node_t_construct (list_node_t* this, char word[]);
+void list_node_t_construct (list_node_t* this, char* data);
 /**
 *@brief Standard list element destructor.
 *
@@ -157,7 +157,7 @@ void list_t_dump_ (const list_t* this, const char name[]);
 *@param this Pointer to the head to add element to.
 *@param element List element to be added
 */
-void list_t_add (list_t* this, char word[]);
+void list_t_add (list_t* this, char* data);
 
 inline bool list_t_is_empty (list_t* this)
 {
@@ -176,9 +176,7 @@ bool list_t_construct (list_t* this, size_t size)
     this->size = 0;
 
     this->storage = (list_node_t*)calloc(this->max_size, sizeof(list_node_t));
-    if (!this->storage)
-    {
-        BOOM();
+    if (!this->storage){
         list_t_destruct(this);
 
         return false;
@@ -199,7 +197,7 @@ bool list_t_construct (list_t* this, size_t size)
 
     // Setting with poison
     this->first = SIZE_MAX;
-    this->last = SIZE_MAX;
+    this->last  = SIZE_MAX;
 
     //list_t_dump(this);
     //getchar();
@@ -213,9 +211,7 @@ bool list_t_realloc (list_t* this, size_t new_size)
 
     this->storage = (list_node_t*)realloc(this->storage, new_size * sizeof(list_node_t));
     list_node_t* storage = this->storage;
-    if (!storage)
-    {
-        BOOM();
+    if (!storage){
         list_t_destruct(this);
 
         return false;
@@ -258,24 +254,21 @@ void list_t_destruct (list_t* this)
     this->is_valid = false;
 }
 
-list_node_t* list_t_bsearch (const char word[],
+list_node_t* list_t_bsearch (char* data,
                              const list_node_t* storage,
                              const size_t size)
 {
     assert (storage);
-    assert (word);
 
     size_t lim = size;
     list_node_t* p;
     list_node_t* base = storage;
-    int cmp = 0;
     // Divide by 2
     for (; lim != 0; lim >>= 1){
 		p = base + (lim >> 1); // And again
-		cmp = strcmp (word, p->word);
-		if (cmp == 0)
+		if (data == p->data)
 			return (p);
-		if (cmp > 0) {	/* key > p: move right */
+		if (data > p->data) {	/* key > p: move right */
 			base = p++;
 			lim--;
 		}		/* else move left */
@@ -284,55 +277,25 @@ list_node_t* list_t_bsearch (const char word[],
 }
 
 list_node_t* list_t_search (const list_t* this,
-                            const char word[])
+                            char* data)
 {
     ASSERT_OK(list_t, this);
-    assert (word);
 
     list_node_t* storage = this->storage;
     // If the list is sorted, binary search is better
     if (this->is_sorted)
-        return list_t_bsearch (word, storage, this->size);
+        return list_t_bsearch (data, storage, this->size);
     // Ordinary search is used by default
     size_t i = this->first;
     list_node_t* node = NULL;
     // While element is present
     for (; i < SIZE_MAX; i = node->next){
         node = storage + i;
-        if (!strcmp (node->word, word))
+        if (node->data == data)
             break;
     }
 
     return (i == SIZE_MAX? NULL : node);
-}
-
-void list_node_t_construct (list_node_t* this, char word[])
-{
-    assert (this);
-    assert (word);
-
-    this->amount = 1;
-    this->next = SIZE_MAX;
-    this->prev = SIZE_MAX;
-    this->word = word;
-    this->is_allocated = false;
-    this->is_valid = true;
-}
-
-bool list_node_t_construct_dup (list_node_t* this, const char word[])
-{
-    assert (this);
-    assert (word);
-
-    char* word_dup = strdup(word);
-
-    if (!word_dup)
-        return false;
-    list_node_t_construct(this, word_dup);
-    this->is_allocated = true;
-    ASSERT_OK(list_node_t, this);
-
-    return true;
 }
 
 void list_node_t_destruct (list_node_t* this)
@@ -343,10 +306,9 @@ void list_node_t_destruct (list_node_t* this)
     this->head = NULL;
     this->next = SIZE_MAX;
     this->prev = SIZE_MAX;
-    this->amount = 0;
-    if (this->is_allocated && this->word)
-        free (this->word);
-    this->word = NULL;
+    if (this->is_allocated && this->data)
+        free (this->data);
+    this->data = NULL;
 }
 
 list_node_t* list_t_alloc (list_t* this)
@@ -417,61 +379,38 @@ void list_t_append (list_t* this, list_node_t* node)
   //  getchar();
 }
 
+void list_node_t_construct (list_node_t* this, char* data)
+{
+    assert (this);
+
+    this->next = SIZE_MAX;
+    this->prev = SIZE_MAX;
+    this->data = data;
+    this->is_allocated = false;
+    this->is_valid = true;
+}
+
 // Appends node to the end of the list
 // Doesn't care if there is a copy already
-bool list_t_append_word (list_t* this, char word[])
+bool list_t_append_data (list_t* this, char* data)
 {
     ASSERT_OK(list_t, this);
     list_node_t* node = list_t_alloc(this);
     // Construct node in newly allocated space
-    list_node_t_construct (node, word);
+    list_node_t_construct (node, data);
     list_t_append(this, node);
 
     return true;
 }
 
-bool list_t_append_word_dup (list_t* this, const char word[])
+void list_t_add (list_t* this, char* data)
 {
     ASSERT_OK(list_t, this);
-    list_node_t* node = list_t_alloc(this);
-    // Construct node in newly allocated space
-    if (!list_node_t_construct_dup (node, word)){
-        list_t_destruct(this);
-        return false;
-    }
-    list_t_append(this, node);
 
-    return true;
-}
-
-void list_t_add (list_t* this,
-                 char word[])
-{
-    ASSERT_OK(list_t, this);
-    assert (word);
-
-    list_node_t* node = list_t_search(this, word);
+    list_node_t* node = list_t_search(this, data);
     //printf ("Search: %p\n", node);
-    if (node)
-        node->amount++;
-    else{
-        list_t_append_word(this, word);
-    }
-}
-
-bool list_t_add_dup (list_t* this,
-                     const char word[])
-{
-    ASSERT_OK(list_t, this);
-    assert (word);
-
-    list_node_t* node = list_t_search(this, word);
-    if (node){
-        node->amount++;
-        return true;
-    }
-    else
-        return (list_t_append_word_dup(this, word));
+    if (!node)
+        list_t_append_data(this, data);
 }
 
 void list_t_dump_ (const list_t* this, const char name[])
@@ -545,7 +484,7 @@ bool list_t_OK (const list_t* this)
 bool list_node_t_OK (const list_node_t* this)
 {
     assert (this);
-    return this->word && this->is_valid;
+    return this->data && this->is_valid;
 }
 
 void list_node_t_dump_ (const list_node_t* this, const char name[])
@@ -570,8 +509,7 @@ void list_node_t_dump_ (const list_node_t* this, const char name[])
     else
         printf("\t%-10s %lu\n", "prev", this->prev);
     printf("\t%-10s %p\n", "head", this->head);
-    printf("\t%-10s \"%s\"\n", "word", this->word);
-    printf("\t%-10s %lu\n", "amount", this->amount);
+    printf("\t%-10s %p\n", "data", this->data);
     printf(ANSI_COLOR_YELLOW "-----------------------------------------------------" ANSI_COLOR_RESET "\n");
 }
 

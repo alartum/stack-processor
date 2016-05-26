@@ -116,6 +116,7 @@ ONE_ROOT:
     jmp SOLVE_SQUARE_END 
 
 calcD:
+    debug
     push dword [a]
     push dword [c]
     fmul
