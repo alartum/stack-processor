@@ -2,6 +2,7 @@
 A set of tools to emulate the work of stack processor and write programs for it. 
 
 ##File info
+
 Directory Name | Purpose
 ------------ | -------------
 stack-processor | The emulator itself
